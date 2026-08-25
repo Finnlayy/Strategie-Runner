@@ -1,0 +1,41 @@
+{
+  "7675e592-7509-47ce-896e-b038aa19da53": {
+    "race_id": "7675e592-7509-47ce-896e-b038aa19da53",
+    "asset_pair": "BTC/USD",
+    "champion_id": "3b1f9551-51a6-495c-ad1a-268ae7014a1f",
+    "champion_name": "Sigma_Kraken_Champion_v1",
+    "challenger_id": "b73e9250-a863-44fd-98ee-f42066dc8790",
+    "challenger_name": "Genetic_Evolution_Challenger_v2",
+    "created_at": "2026-08-23T07:25:03.375576+00:00",
+    "updated_at": "2026-08-23T07:25:03.399534+00:00",
+    "status": "CHAMPION_DEFENDED",
+    "target_trades": 25,
+    "target_bars": 350,
+    "evaluation": {
+      "race_id": "7675e592-7509-47ce-896e-b038aa19da53",
+      "status": "CHAMPION_DEFENDED",
+      "decision": "CHAMPION DEFENDED. Champion 'Sigma_Kraken_Champion_v1' maintained higher resilience (Score 2.7 vs 0.0). Challenger returned to Academy.",
+      "alpha_delta": -2.72,
+      "pnl_delta": -0.05,
+      "evaluated_at": "2026-08-23T07:25:03.399454+00:00",
+      "champion": {
+        "id": "3b1f9551-51a6-495c-ad1a-268ae7014a1f",
+        "name": "Sigma_Kraken_Champion_v1",
+        "score": 2.7,
+        "pnl_pct": -9.4,
+        "max_drawdown_pct": 9.63,
+        "win_rate": 26.67,
+        "trades": 15
+      },
+      "challenger": {
+        "id": "b73e9250-a863-44fd-98ee-f42066dc8790",
+        "name": "Genetic_Evolution_Challenger_v2",
+        "score": 0.0,
+        "pnl_pct": -9.45,
+        "max_drawdown_pct": 9.68,
+        "win_rate": 20.0,
+        "trades": 15
+      }
+    }
+  }
+}

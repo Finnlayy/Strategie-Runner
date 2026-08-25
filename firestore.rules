@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Strategies collection
+    match /strategies/{strategyId} {
+      allow read, write: if true;
+    }
+
+    // Trades collection
+    match /trades/{tradeId} {
+      allow read, write: if true;
+    }
+
+    // Ledger balances / state
+    match /ledger_state/{docId} {
+      allow read, write: if true;
+    }
+
+    // Backtest results and telemetry
+    match /backtest_runs/{runId} {
+      allow read, write: if true;
+    }
+
+    // Global settings and configs
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
