@@ -1,0 +1,72 @@
+{
+  "GBH-01": {
+    "note": "noch nicht uebernommen — Engine laeuft mit fallback: votes aus /api/ai/trade-signal + Sigma-Strategie-Heuristik",
+    "owner": "heuristik",
+    "payload": {},
+    "status": "PLACEHOLDER",
+    "updated_at": null
+  },
+  "GBH-02": {
+    "note": "noch nicht uebernommen — Engine laeuft mit fallback: exponentielle IC mit Klemme [0.35, 1.6]",
+    "owner": "heuristik",
+    "payload": {},
+    "status": "PLACEHOLDER",
+    "updated_at": null
+  },
+  "GBH-03": {
+    "note": "noch nicht uebernommen — Engine laeuft mit fallback: globale feste Matrix (Hurst-Schwellen 0.45/0.55/0.75)",
+    "owner": "heuristik",
+    "payload": {},
+    "status": "PLACEHOLDER",
+    "updated_at": null
+  },
+  "GBH-04": {
+    "note": "noch nicht uebernommen — Engine laeuft mit fallback: R/S-Schaetzung; DFA wenn numpy installiert ist",
+    "owner": "heuristik",
+    "payload": {},
+    "status": "PLACEHOLDER",
+    "updated_at": null
+  },
+  "GBH-05": {
+    "note": "noch nicht uebernommen — Engine laeuft mit fallback: manuelle Liste / leer",
+    "owner": "heuristik",
+    "payload": {},
+    "status": "PLACEHOLDER",
+    "updated_at": null
+  },
+  "GBH-06": {
+    "note": "noch nicht uebernommen — Engine laeuft mit fallback: Toleranz 1e-6; Abweichungen > 2% lassen Antraege scheitern (blocking)",
+    "owner": "heuristik",
+    "payload": {},
+    "status": "PLACEHOLDER",
+    "updated_at": null
+  },
+  "GBH-07": {
+    "note": "noch nicht uebernommen — Engine laeuft mit fallback: linearer Daempener ab 5% DD, Floor 0.2",
+    "owner": "heuristik",
+    "payload": {},
+    "status": "PLACEHOLDER",
+    "updated_at": null
+  },
+  "GBH-08": {
+    "note": "noch nicht uebernommen — Engine laeuft mit fallback: auto-Modus: anonymisieren bei Kontamination > 0",
+    "owner": "heuristik",
+    "payload": {},
+    "status": "PLACEHOLDER",
+    "updated_at": null
+  },
+  "GBH-09": {
+    "note": "noch nicht uebernommen — Engine laeuft mit fallback: keine automatischen Overrides",
+    "owner": "heuristik",
+    "payload": {},
+    "status": "PLACEHOLDER",
+    "updated_at": null
+  },
+  "GBH-10": {
+    "note": "noch nicht uebernommen — Engine laeuft mit fallback: Gewicht manifest_champion=0.60 fix",
+    "owner": "heuristik",
+    "payload": {},
+    "status": "PLACEHOLDER",
+    "updated_at": null
+  }
+}
