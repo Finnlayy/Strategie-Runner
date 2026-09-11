@@ -21,3 +21,6 @@ data/paper/*.jsonl
 data/academy/*.jsonl
 data/orchestrator/decisions.jsonl
 data/orchestrator/ors_state.json
+
+data/orchestrator/parity_evidence_*.json
+data/orchestrator/parity_evidence_latest.json

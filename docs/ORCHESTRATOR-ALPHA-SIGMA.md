@@ -1,4 +1,4 @@
-﻿# Orchestrator-Engine — ALPHA/SIGMA-Zweikammersystem
+# Orchestrator-Engine — ALPHA/SIGMA-Zweikammersystem
 
 Modul **19**: `app/orchestrator/alpha_sigma_engine.py` (Kern, Standardbibliothek),
 `server/orchestratorEngine.ts` (Prozessbrücke), `server/grokOrchestrator.ts`
@@ -321,4 +321,16 @@ content hash of the Runner artifact.  Only then may it post a GBH-06
 `IMPLEMENTED` resolution.  A bridge self-comparison (`parity-check`) is not
 evidence and does not clear the gate.  The nine GBH expected-failure tests stay
 marked until their actual bot resolutions exist.
+## GBH-06 Parity evidence (operator)
 
+GBH-06 is **not** satisfied by a mirror self-check (`mark_hook=false` / `POST /api/orchestrator/parity-check`).
+
+Prove it locally with independent runner-side values:
+
+```bash
+python scripts/prove_gbh06_parity.py
+```
+
+- Runner SoT module: `app/quant/runner_strategy_indicators.py` (does not import orchestrator `sigma_indicators`)
+- Evidence artifact (gitignored): `data/orchestrator/parity_evidence_*.json`
+- On success the orchestrator sets hook GBH-06 to `IMPLEMENTED` via owner `parity-check`
