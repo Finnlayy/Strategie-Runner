@@ -21,3 +21,5 @@ Leakage guards reject symbol/ticker, timeframe, timestamps, raw OHLC,
 absolute-price, future/next-bar and look-ahead fields.  An open candle is
 rejected rather than guessed closed.  No perception function can submit a vote
 to a broker or execute an order.
+
+See also [Neo harvest gaps](NEO-BLIND-HARVEST-GAPS.md).
