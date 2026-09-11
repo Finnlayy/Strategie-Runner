@@ -212,20 +212,22 @@ class ShadowRaceManager:
         status_code: str
 
         if is_challenger_victory:
-            decision = f"CHALLENGER WINS! Challenger '{chall.name}' achieved superior Alpha (+{alpha_delta} pts, PnL +{pnl_delta}%). PROMOTING TO LIVE CHAMPION."
+            decision = f"CHALLENGER WINS! Challenger '{chall.name}' achieved superior Alpha (+{alpha_delta} pts, PnL +{pnl_delta}%). PROMOTING TO SHADOW CHAMPION (paper-only)."
             status_code = ShadowRaceStatus.CHALLENGER_PROMOTED
 
-            # 1. Promote Challenger to LIVE_CHAMPION
+            # Academy promotion is shadow-policy only.  A separate operator/policy
+            # gate is required before any future live transition.
             strategy_registry.update_status(
                 strategy_id=challenger_id,
-                new_status=LifecycleStatus.LIVE_CHAMPION,
-                reason=f"Defeated incumbent Champion '{champ.name}' in Shadow-Queue A/B race (+{alpha_delta} Alpha Delta). Promoted to Live Execution.",
-                payload={"race_id": race_id, "score": chall_score, "vs_champion_score": champ_score},
+                new_status=LifecycleStatus.SHADOW_CHAMPION,
+                reason=f"Defeated incumbent Champion '{champ.name}' in Paper Shadow-Queue A/B race (+{alpha_delta} Alpha Delta). No live authorization.",
+                payload={"race_id": race_id, "score": chall_score, "vs_champion_score": champ_score,
+                         "paper_only": True, "live_authorized": False},
                 actor="SHADOW_RACING_ENGINE"
             )
-            # Award Badges
-            strategy_registry.award_badge(challenger_id, BadgeType.SHADOW_RACER, {"race_id": race_id, "alpha_delta": alpha_delta})
-            strategy_registry.award_badge(challenger_id, BadgeType.LIVE_PROMOTED, {"promoted_at": datetime.now(timezone.utc).isoformat()})
+            # Award only the shadow qualification badge; LIVE_PROMOTED is
+            # deliberately not granted by the Academy loop.
+            strategy_registry.award_badge(challenger_id, BadgeType.SHADOW_RACER, {"race_id": race_id, "alpha_delta": alpha_delta, "paper_only": True})
 
             # 2. Degrade former Champion to DEGRADED
             strategy_registry.update_status(

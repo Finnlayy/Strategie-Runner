@@ -438,3 +438,35 @@ print(json.dumps(res, default=_json_serial))
 `;
   return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
 }
+
+// -----------------------------------------------------------------------------
+// FUSION: Sigma Quant Bridge / Jules Night-Train (paper-only)
+// -----------------------------------------------------------------------------
+export async function getQuantBackendStatus(): Promise<any> {
+  const pyCode = `
+import json
+from app.quant.sigma_bridge import quant_backend_status
+print(json.dumps(quant_backend_status()))
+`;
+  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
+}
+
+export async function evaluateSigmaQuant(payload: Record<string, any>): Promise<any> {
+  const pyCode = `
+import base64, json, sys
+from app.quant.sigma_bridge import SigmaQuantBridge
+req = json.loads(base64.b64decode(sys.argv[1]).decode("utf-8"))
+print(json.dumps(SigmaQuantBridge().evaluate_payload(req), default=str))
+`;
+  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}' '${b64(payload)}'`);
+}
+
+export async function runJulesNightTrain(payload: Record<string, any> = {}): Promise<any> {
+  const pyCode = `
+import base64, json, sys
+from app.academy.night_train import run_night_train
+req = json.loads(base64.b64decode(sys.argv[1]).decode("utf-8")) or {}
+print(json.dumps(run_night_train(**req), default=str))
+`;
+  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}' '${b64(payload)}'`);
+}

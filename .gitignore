@@ -1,4 +1,5 @@
 node_modules/
+dist/
 coverage/
 .DS_Store
 *.log
@@ -14,3 +15,12 @@ data/registry/llm_cost_ledger.jsonl
 data/orchestrator/ors_state.json
 data/orchestrator/decisions.jsonl
 data/orchestrator/hurst_probe.json
+
+# Fusion runtime journals (contracts and code remain tracked)
+data/paper/*.jsonl
+data/academy/*.jsonl
+data/orchestrator/decisions.jsonl
+data/orchestrator/ors_state.json
+
+data/orchestrator/parity_evidence_*.json
+data/orchestrator/parity_evidence_latest.json

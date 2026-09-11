@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "strategie-runner/fusion-contracts/1",
+  "description": "Paper-only Sigma Quant, Fable Blind and Jules Academy boundary contracts",
+  "no_live_order_authority": true,
+  "contracts": {
+    "QuantRequest": {"required": ["symbol", "prices", "closed_candle_only", "execution_mode"], "execution_mode": "paper"},
+    "RegimePacket": {"required": ["symbol", "regime", "confidence", "closed_candle_only"]},
+    "QuantVerdict": {"required": ["symbol", "status", "backend", "regime", "fail_closed"]},
+    "PaperIntent": {"required": ["intent_id", "symbol", "action", "qty", "price_hint", "execution_mode", "parity_hash"], "execution_mode": "paper"},
+    "BlindPatternPacket": {"required": ["pattern_id", "confidence", "geometry_features", "closed_bar_only", "symbol_agnostic"], "forbidden_inputs": ["symbol", "timeframe", "timestamp", "open", "high", "low", "close", "absolute_price", "future"]},
+    "AcademyEvent": {"required": ["event_id", "event_type", "paper_only"]},
+    "NightTrainReport": {"required": ["report_id", "status", "dry_run", "fail_closed"]}
+  }
+}
