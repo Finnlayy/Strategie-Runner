@@ -59,3 +59,9 @@ reports instead of copying an unverified engine.
 * empty/missing backend/data returns a structured fail-closed result;
 * promotion is not live authorization;
 * no unattended paid-API loop is used by the autonomous or night paths.
+
+## Local Windows harvest (operator)
+
+On Asus SoT machine, harvests may live under `D:\\GrokTrading\\harvests\\{sigma,jules,neo_fabel,trading}`.
+Point `SIGMA_QUANT_MODULE` at an installed adapter module when wiring the external tree;
+never commit secrets from `harvests\\sigma\\.env`.

@@ -225,6 +225,8 @@ REGIME_SOURCE_MATRIX: Dict[str, Tuple[Regime, ...]] = {
     "ampel_structure": (Regime.MEAN_REVERTING, Regime.MOMENTUM_TREND),
     "rl_fast_path": (Regime.MOMENTUM_TREND, Regime.MEAN_REVERTING),
     "manifest_champion": (Regime.MOMENTUM_TREND, Regime.MEAN_REVERTING, Regime.SUPER_EXPONENTIAL),
+    # Asset overlays under "__asset__" (dict[asset] -> dict[source] -> regimes). GBH-03.
+    "__asset__": {},
 }
 # <<< GROK-BOT [GBH-03] <<<
 
@@ -409,10 +411,14 @@ class AlphaSubsystem:
             prev = self._ic.get(src, 0.0)
             self._ic[src] = lam * prev + (1 - lam) * scaled
             self._ic_n[src] = self._ic_n.get(src, 0) + 1
-        # >>> GROK-BOT [GBH-02] >>>
-        # Ersetzbar durch : adaptive Gewichtung als Bayes-Update/Bandit,
-        # Regime-konditionierte IC, Kosten-bereinigte (nach Slippage) IC.
-        # Solange nicht claimed, bleibt die EWMA-Heuristik oben massgeblich.
+        # >>> GROK-BOT [GBH-02] IMPLEMENTED >>>
+        if self.cfg.alpha_weight_adaptation:
+            for src, ic in list(self._ic.items()):
+                if src not in self.cfg.alpha_source_weights:
+                    continue
+                base = float(self.cfg.alpha_source_weights[src])
+                mult = max(0.5, min(1.15, 1.0 + 0.5 * ic))
+                self.cfg.alpha_source_weights[src] = round(max(0.15, min(1.6, base * mult)), 4)
         # <<< GROK-BOT [GBH-02] <<<
 
     # -- Aggregation ---------------------------------------------------------
@@ -432,6 +438,11 @@ class AlphaSubsystem:
                 continue
             decay = 0.5 ** (age / max(1e-6, self.cfg.alpha_half_life_bars))
             allowed_src = REGIME_SOURCE_MATRIX.get(v.source)
+            asset_map = REGIME_SOURCE_MATRIX.get("__asset__") or {}
+            if isinstance(asset_map, dict):
+                per_asset = asset_map.get(v.symbol) or asset_map.get(symbol.upper())
+                if isinstance(per_asset, dict) and v.source in per_asset:
+                    allowed_src = per_asset[v.source]
             if regime is not None and allowed_src is not None and regime not in allowed_src:
                 blocked.append(v.source)
                 continue
@@ -716,13 +727,28 @@ class SigmaSubsystem:
         if sig.realized_vol_ann > self.cfg.sigma_max_asset_annual_vol_gate:
             reasons.append(RejectReason.VOLATILITY_GATE.value)
 
-        # 4) Drawdown-Daempfer
+        # 4) Drawdown-Daempfer + GBH-07 escalation ladder
         dd = max(0.0, pf.drawdown_pct or 0.0)
         damp = 1.0
         if dd > self.cfg.sigma_dd_dampener_start_pct:
             damp = max(self.cfg.sigma_dd_dampener_floor, 1.0 - (dd - self.cfg.sigma_dd_dampener_start_pct) / 20.0)
         trace["drawdown_dampener"] = round(damp, 4)
         alloc *= damp
+        dd_stage = 0
+        if dd >= 30.0:
+            dd_stage = 3
+            reasons.append("DD_ESCALATION_STAGE_3")
+            reasons.append(RejectReason.CIRCUIT_BREAKER.value)
+        elif dd >= 20.0:
+            dd_stage = 2
+            reasons.append("DD_ESCALATION_STAGE_2")
+        elif dd >= 12.0:
+            dd_stage = 1
+            if score.direction != 0:
+                reasons.append("DD_ESCALATION_STAGE_1")
+        elif dd >= self.cfg.sigma_dd_dampener_start_pct:
+            dd_stage = 0
+        trace["dd_escalation_stage"] = dd_stage
 
         # 5) Exposure-Caps
         headroom = self.cfg.sigma_max_gross_exposure_pct - max(0.0, pf.gross_exposure_pct)
@@ -1047,6 +1073,7 @@ class AlphaSigmaOrchestrator:
     # -- Persistenz ----------------------------------------------------------
     # Der TS-Bridge startet pro Aufruf einen Python-Prozess; ohne Snapshot waere
     # der Orchestrator-zustand nach jedem tick weg. Ausserdem: Restart-safe.
+
     def snapshot(self) -> Dict[str, Any]:
         return {
             "schema": 1,
@@ -1266,6 +1293,22 @@ class AlphaSigmaOrchestrator:
                 fwd = math.log(series[-1] / series[-1 - horizon]) if series[-1 - horizon] > 0 else 0.0
                 self.alpha.observe_outcome(sym, bar, fwd)
 
+        # GBH-07: hard DD stages reject before soft NO_INTENT paths
+        dd_now = max(0.0, float(self.state.portfolio.drawdown_pct or 0.0))
+        if dd_now >= 20.0:
+            stage = 3 if dd_now >= 30.0 else 2
+            code = "DD_ESCALATION_STAGE_3" if stage == 3 else "DD_ESCALATION_STAGE_2"
+            base_dd = {
+                "schema": "ors-decision/1",
+                "symbol": sym, "bar": bar, "alpha": score.to_dict(), "sigma": sig.to_dict(),
+                "verdict": Verdict.REJECTED.value,
+                "reason_codes": [code],
+                "intent": None,
+                "drawdown_pct": round(dd_now, 3),
+                "dd_escalation_stage": stage,
+            }
+            return base_dd
+
         blocking_open = [h["id"] for h in GROK_BOT_HOOKS
                          if h["blocking"] and (self.state.hook_state.get(h["id"]) or {}).get("status", h["status"]) != "IMPLEMENTED"]
         pending = [h["id"] for h in GROK_BOT_HOOKS
@@ -1454,7 +1497,14 @@ class AlphaSigmaOrchestrator:
                 "drawdown_pct": round(self.state.portfolio.drawdown_pct, 3),
                 "open_position": self.state.portfolio.open_position,
             },
-            "regime_matrix": {k: [r.value for r in v] for k, v in REGIME_SOURCE_MATRIX.items()},
+            "regime_matrix": {
+                k: (
+                    {ak: [r.value for r in av] for ak, av in v.items()}
+                    if k == "__asset__" and isinstance(v, dict)
+                    else [r.value for r in v]
+                )
+                for k, v in REGIME_SOURCE_MATRIX.items()
+            },
             "parity": dict(self.parity_cache),
             "directives": system_directive.get_system_telemetry(),
             "symbols": [symbol.upper()] if symbol else sorted(self.sigma._series.keys()),

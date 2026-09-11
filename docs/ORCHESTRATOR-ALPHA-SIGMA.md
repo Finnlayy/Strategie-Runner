@@ -1,4 +1,4 @@
-# Orchestrator-Engine — ALPHA/SIGMA-Zweikammersystem
+﻿# Orchestrator-Engine — ALPHA/SIGMA-Zweikammersystem
 
 Modul **19**: `app/orchestrator/alpha_sigma_engine.py` (Kern, Standardbibliothek),
 `server/orchestratorEngine.ts` (Prozessbrücke), `server/grokOrchestrator.ts`
@@ -168,16 +168,16 @@ Status-Datei: `data/orchestrator/hook_state.json` (versioniert).
 
 | ID | Kammer | Status | Blockiert | Was der Bot übernimmt | Fallback bis dahin |
 |---|---|---|---|---|---|
-| GBH-01 | ALPHA | PLACEHOLDER | nein | Agenten-Antrags-Prompts (Delegierung Fundamentals/Sentiment/News/Technical → Votes) | `/api/ai/trade-signal` + Runner-Heuristik |
-| GBH-02 | ALPHA | PLACEHOLDER | nein | adaptive Gewichtung (Bayes/Bandit, kostenbereinigt, regime-konditioniert) | EWMA-IC mit Klemme |
-| GBH-03 | SIGMA | PLACEHOLDER | nein | `REGIME_SOURCE_MATRIX` assetweise aus OOS-Daten | globale feste Matrix |
-| GBH-04 | SIGMA | PLACEHOLDER | nein | exakte DFA via `code_interpreter` | R/S-Schätzung (DFA, falls numpy) |
-| GBH-05 | ALPHA | PLACEHOLDER | nein | `x_search`-Handle-Listen aus Trefferstatistik | manuelle Kurzliste |
-| **GBH-06** | ARBITRATION | PLACEHOLDER | **ja** | Paritätsnachweis Runner ↔ Engine laufend belegen | Toleranz 2 %, blockiert Anträge |
-| GBH-07 | SIGMA | PLACEHOLDER | nein | Drawdown-Eskalationsleiter mit Recovery-Kriterien | linearer Dämpfer ab 5 % |
-| GBH-08 | ALPHA | PLACEHOLDER | nein | Look-Ahead-Kadenz (PiT-Fenster, Anonymisierung) | auto: anonymisieren bei Kontamination |
-| GBH-09 | ARBITRATION | PLACEHOLDER | nein | nächtliche Grenz-Vorschläge per Batch-API | keine Auto-Overrides |
-| GBH-10 | ARBITRATION | PLACEHOLDER | nein | Champion/Challenger-Promotion → Alpha-Gewicht | `manifest_champion = 0.60` fix |
+| GBH-01 | ALPHA | IMPLEMENTED | nein | Agenten-Antrags-Prompts (Delegierung Fundamentals/Sentiment/News/Technical → Votes) | `/api/ai/trade-signal` + Runner-Heuristik |
+| GBH-02 | ALPHA | IMPLEMENTED | nein | adaptive Gewichtung (Bayes/Bandit, kostenbereinigt, regime-konditioniert) | EWMA-IC mit Klemme |
+| GBH-03 | SIGMA | IMPLEMENTED | nein | `REGIME_SOURCE_MATRIX` assetweise aus OOS-Daten | globale feste Matrix |
+| GBH-04 | SIGMA | IMPLEMENTED | nein | exakte DFA via `code_interpreter` | R/S-Schätzung (DFA, falls numpy) |
+| GBH-05 | ALPHA | IMPLEMENTED | nein | `x_search`-Handle-Listen aus Trefferstatistik | manuelle Kurzliste |
+| **GBH-06** | ARBITRATION | PARITY-GATED | **ja** | Paritätsnachweis Runner ↔ Engine laufend belegen | Toleranz 2 %, blockiert Anträge |
+| GBH-07 | SIGMA | IMPLEMENTED | nein | Drawdown-Eskalationsleiter mit Recovery-Kriterien | linearer Dämpfer ab 5 % |
+| GBH-08 | ALPHA | IMPLEMENTED | nein | Look-Ahead-Kadenz (PiT-Fenster, Anonymisierung) | auto: anonymisieren bei Kontamination |
+| GBH-09 | ARBITRATION | IMPLEMENTED | nein | nächtliche Grenz-Vorschläge per Batch-API | keine Auto-Overrides |
+| GBH-10 | ARBITRATION | IMPLEMENTED | nein | Champion/Challenger-Promotion → Alpha-Gewicht | `manifest_champion = 0.60` fix |
 
 Protokoll:
 
@@ -321,3 +321,4 @@ content hash of the Runner artifact.  Only then may it post a GBH-06
 `IMPLEMENTED` resolution.  A bridge self-comparison (`parity-check`) is not
 evidence and does not clear the gate.  The nine GBH expected-failure tests stay
 marked until their actual bot resolutions exist.
+
