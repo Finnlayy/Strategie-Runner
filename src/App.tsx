@@ -25,6 +25,7 @@ import { DataLakePanel } from "./components/DataLakePanel";
 import { SystemHealthPanel } from "./components/quant/SystemHealthPanel";
 import { QuantitativeRegimePanel } from "./components/quant/QuantitativeRegimePanel";
 import { ExecutionRiskPanel } from "./components/quant/ExecutionRiskPanel";
+import { AlphaSigmaOrchestratorPanel } from "./components/quant/AlphaSigmaOrchestratorPanel";
 import { AcademyRegistryPanel } from "./components/quant/AcademyRegistryPanel";
 
 export default function App() {
@@ -1065,6 +1066,7 @@ export default function App() {
             /* ======================================================== */
             /* PAGE 2: STRATEGY ORCHESTRATOR PAGE                       */
             /* ======================================================== */
+            <>
             <motion.div
               key="orchestrator-page"
               initial={{ opacity: 0, y: 8 }}
@@ -1325,6 +1327,12 @@ export default function App() {
                 </div>
               </div>
             </motion.div>
+
+            {/* ======================================================== */}
+            {/* ALPHA/SIGMA ORCHESTRATOR (Modul 19): zwei Kammern, ein Urteil */}
+            {/* ======================================================== */}
+            <AlphaSigmaOrchestratorPanel />
+            </>
           ) : activePage === 'backtesting' ? (
             /* ======================================================== */
             /* PAGE 3: STRATEGY BACKTESTING PAGE                        */

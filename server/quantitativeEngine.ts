@@ -359,3 +359,82 @@ print(json.dumps(inference, default=_json_serial))
 `;
   return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
 }
+
+// -----------------------------------------------------------------------------
+// MODULE 18b: GROK AGENT CONTRACTS & LOOK-AHEAD BIAS GUARD (Python-Seite)
+// -----------------------------------------------------------------------------
+// Payloads werden base64-encodiert übergeben — vermeidet das komplette
+// Shell-Quoting-Problem bei LLM-freiem Text (News, Posts, Prompts).
+
+function b64(value: any): string {
+  return Buffer.from(JSON.stringify(value ?? null), "utf8").toString("base64");
+}
+
+/** Zweite, unabhaengige Pruefung des Ordervertrags gegen die TS-Guardrails. */
+export async function grokValidateSignalContract(
+  signal: any,
+  contractOpts: any = {},
+  equityUsd: number = 0,
+  currentExposure: Record<string, number> = {}
+): Promise<any> {
+  const pyCode = `
+import base64, json, sys
+${SERIALIZER_HELPER}
+from app.llm.grok_contracts import grok_engine_facade
+
+payload = json.loads(base64.b64decode(sys.argv[1]).decode("utf-8"))
+opts = json.loads(base64.b64decode(sys.argv[2]).decode("utf-8")) or {}
+equity = float(sys.argv[3] or 0)
+exposure = json.loads(base64.b64decode(sys.argv[4]).decode("utf-8")) or {}
+res = grok_engine_facade.validate_signal(payload, opts, equity, exposure)
+print(json.dumps(res, default=_json_serial))
+`;
+  const args = [b64(signal), b64(contractOpts), String(equityUsd || 0), b64(currentExposure)]
+    .map(a => `'${a}'`).join(" ");
+  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}' ${args}`);
+}
+
+/**
+ * Look-Ahead-Bias-Audit: Knowledge-Cutoff-Kontrolle, Entitaets-Anonymisierung
+ * und Alpha-Decay-Messung (In-Sample vs. Out-of-Sample).
+ */
+export async function grokBiasAudit(input: {
+  windowStart: string;
+  windowEnd: string;
+  model?: string;
+  sampleText?: string;
+  inSample?: Record<string, number>;
+  outOfSample?: Record<string, number>;
+}): Promise<any> {
+  const pyCode = `
+import base64, json, sys
+${SERIALIZER_HELPER}
+from app.llm.grok_contracts import grok_engine_facade
+
+req = json.loads(base64.b64decode(sys.argv[1]).decode("utf-8")) or {}
+res = grok_engine_facade.bias_audit(
+    window_start=req.get("windowStart", ""),
+    window_end=req.get("windowEnd", ""),
+    model=req.get("model", "grok-4.6"),
+    sample_text=req.get("sampleText", ""),
+    in_sample=req.get("inSample"),
+    out_of_sample=req.get("outOfSample"),
+)
+print(json.dumps(res, default=_json_serial))
+`;
+  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}' "${b64(input)}"`);
+}
+
+/** Kostenvorhersage pro Request (Cache-Rabatt + Long-Context-Preissprung + Tool-Fees). */
+export async function grokCostProbe(model: string, promptTokens: number, completionTokens: number,
+  cachedPromptTokens: number = 0, xSearchCalls: number = 0, codeExecCalls: number = 0): Promise<any> {
+  const pyCode = `
+import json
+${SERIALIZER_HELPER}
+from app.llm.grok_contracts import grok_engine_facade
+
+res = grok_engine_facade.cost_probe("${model}", ${Math.max(0, Math.floor(promptTokens))}, ${Math.max(0, Math.floor(completionTokens))}, ${Math.max(0, Math.floor(cachedPromptTokens))}, ${Math.max(0, Math.floor(xSearchCalls))}, ${Math.max(0, Math.floor(codeExecCalls))})
+print(json.dumps(res, default=_json_serial))
+`;
+  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
+}

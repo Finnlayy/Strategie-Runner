@@ -37,6 +37,8 @@ export default function AIReviewer({
   
   const [activeTab, setActiveTab] = useState<'generate' | 'audit' | 'manifest'>('generate');
   const [customTweakNote, setCustomTweakNote] = useState("");
+  // Live-Status der LLM-Engine (Grok/xAI vs. Gemini) inkl. Kosten- & Cache-Telemetrie
+  const [engineInfo, setEngineInfo] = useState<any>(null);
   const [applySuccessMsg, setApplySuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -45,6 +47,27 @@ export default function AIReviewer({
     "Volatility breakout with trailing stop-loss",
     "Dynamic spread scalper on high SOL volume"
   ];
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadEngine = async () => {
+      try {
+        const res = await fetch("/api/ai/engine");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setEngineInfo(data);
+      } catch {
+        /* Engine-Telemetrie ist optional — UI bleibt bedienbar */
+      }
+    };
+    loadEngine();
+    return () => { cancelled = true; };
+  }, []);
+
+  const engineLabel = engineInfo?.grok_active
+    ? (engineInfo?.models?.find((m: any) => m.id === (engineInfo?.routing?.audit?.chain?.[0]))?.label?.split(" (")[0] || "Grok")
+    : "Gemini 3.7-Flash";
+  const ledgerSummary = engineInfo?.ledger;
 
   // Fetch Manifest Learned Knowledge Insights
   const fetchManifestInsights = async () => {
@@ -251,7 +274,19 @@ export default function AIReviewer({
           <span>Manifest Knowledge Base:</span>
           <span className="text-emerald-400 font-semibold">{strategies.length} active scripts ingested</span>
         </div>
-        <span className="text-zinc-500">Gemini 3.7-Flash</span>
+        <div className="flex items-center space-x-2">
+          {ledgerSummary && engineInfo?.grok_active && (
+            <span
+              className="text-[9px] font-mono uppercase tracking-wide text-amber-400/90"
+              title={`Monatsbudget $${ledgerSummary.month_usd?.toFixed(3)} / $${ledgerSummary.monthly_cap_usd} · Prognose $${ledgerSummary.projected_month_usd} · Cache-Treffer ${ledgerSummary.cache_hit_rate_pct}% · Tool-Fees $${ledgerSummary.tool_fees_usd}`}
+            >
+              ${ledgerSummary.month_usd?.toFixed(2)} · cache {ledgerSummary.cache_hit_rate_pct}% · T{engineInfo?.rate_tier}
+            </span>
+          )}
+          <span className={`text-[10px] font-mono ${engineInfo?.grok_active ? "text-sky-400" : "text-zinc-500"}`}>
+            {engineLabel}
+          </span>
+        </div>
       </div>
 
       <div className="flex-1 p-4 overflow-y-auto space-y-4">
