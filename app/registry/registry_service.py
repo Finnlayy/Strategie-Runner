@@ -229,6 +229,8 @@ class StrategyRegistry:
             event_type = CareerEventType.METRICS_SNAPSHOT
             if new_status == LifecycleStatus.LIVE_CHAMPION:
                 event_type = CareerEventType.PROMOTED_TO_LIVE
+            elif new_status == LifecycleStatus.SHADOW_CHAMPION:
+                event_type = CareerEventType.PROMOTED_TO_SHADOW
             elif new_status == LifecycleStatus.SHADOW_CHALLENGER:
                 event_type = CareerEventType.ENTERED_SHADOW_QUEUE
             elif new_status == LifecycleStatus.DEGRADED:

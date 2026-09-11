@@ -26,6 +26,7 @@ from datetime import datetime, timedelta, timezone
 from app.academy.drills import drill_evaluator
 from app.academy.facade import academy_facade
 from app.academy.shadow_drift import shadow_drift_engine
+from app.academy.night_train import run_night_train
 from app.analysis.postmortem_rag import postmortem_rag
 from app.core.directives import system_directive
 from app.core.resource_guard import resource_guard
@@ -149,6 +150,11 @@ def main():
 
     # Telemetry Snapshot (17)
     subparsers.add_parser("telemetry", help="Fetch real-time SSE telemetry snapshot")
+
+    # Jules Academy Night-Train (paper-only, capped dry-run)
+    night_p = subparsers.add_parser("night-train", help="Replay the durable paper journal in a capped dry-run")
+    night_p.add_argument("--ledger", default="data/paper/paper_intents.jsonl", help="Paper ledger JSONL path")
+    night_p.add_argument("--max-records", type=int, default=500, help="Replay budget")
 
     # End-to-End Verification Pipeline (E2E)
     e2e_p = subparsers.add_parser("e2e", help="Run End-to-End Verification Test (DuckDB -> Indicators -> Backtest -> Visuals -> Paper Order -> Dashboard State)")
@@ -293,6 +299,11 @@ def main():
     elif args.command == "telemetry":
         snapshot = sse_broadcaster.generate_telemetry_snapshot()
         print(json.dumps(snapshot, indent=2))
+
+    elif args.command == "night-train":
+        print(json.dumps(run_night_train(ledger_path=args.ledger, dry_run=True,
+                                         max_records=args.max_records, max_cost_usd=0.0),
+                          indent=2, default=str))
 
     elif args.command == "e2e":
         from app.validation.e2e_verification import e2e_verification_suite

@@ -293,3 +293,31 @@ Snapshot — der Orchestrator ist damit auch Server-Neustart-überstehend.
 * **Report-Abweichung:** der Architektur-Report nannte einen
   „Orchestrator mit autonomen Orderrechten“. Den gibt es hier bewusst nicht —
   Agenten bekommen Antragsrecht, das Kapital bleibt bei Sigma.
+
+## Fusion bridge (Sigma / Fable / Jules)
+
+The ALPHA/SIGMA chambers remain the arbitration shell.  The SIGMA chamber now
+receives the paper-only `SigmaQuantBridge` result under `decision.quant`; this
+is an adapter around the existing Runner math, not a parallel physics engine.
+Configure it with `QUANT_BACKEND=sigma|legacy|off` (default `sigma`).  A missing
+selected backend is fail-closed.  See `docs/SIGMA-QUANT-BRIDGE.md`.
+
+Fable blind perception is an optional pre-Propose feature.  Its
+`BlindPatternPacket` contains only closed-candle geometry and cannot carry a
+symbol, timeframe, timestamp or absolute price.  See `docs/BLIND-PERCEPTION.md`.
+
+Jules Academy is paper-first: `AutonomousLearningLoop` writes durable,
+hash-chained PaperIntents and `NightTrainJob` replays them in a capped dry run.
+Academy promotion is `SHADOW_CHAMPION`; it does not grant `LIVE_CHAMPION` or
+live execution.  See `docs/JULES-ACADEMY-BRIDGE.md`.
+
+### GBH-06 parity evidence plan
+
+The bot must post `POST /api/orchestrator/parity` with the same closed price
+series, strategy parameters, and Runner-produced values for `basis`, `sigma`,
+`z_score`, `atr`, `hurst`, EMA/breakout and MOS scores.  The response must show
+all required fields `ok` within tolerance and include the source/run ID or
+content hash of the Runner artifact.  Only then may it post a GBH-06
+`IMPLEMENTED` resolution.  A bridge self-comparison (`parity-check`) is not
+evidence and does not clear the gate.  The nine GBH expected-failure tests stay
+marked until their actual bot resolutions exist.

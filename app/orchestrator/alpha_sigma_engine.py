@@ -1037,6 +1037,10 @@ class AlphaSigmaOrchestrator:
         self.sigma = SigmaSubsystem(self.cfg, self.state)
         self.alpha.bar_lookup = self.sigma.bar_for
         self.parity_cache: Dict[str, bool] = {}
+        # SigmaQuantBridge is an adapter around this engine's authoritative math;
+        # importing lazily avoids a module cycle and keeps the legacy chamber intact.
+        from app.quant.sigma_bridge import SigmaQuantBridge
+        self.quant_bridge = SigmaQuantBridge()
         if hydrate:
             self.hydrate()
 
@@ -1243,6 +1247,17 @@ class AlphaSigmaOrchestrator:
         regime = Regime(sig.regime) if sig.regime in {r.value for r in Regime} else Regime.UNKNOWN
         score = self.alpha.score(sym, bar, regime if regime is not Regime.UNKNOWN else None)
 
+        # Phase B contract path: the SIGMA chamber receives a QuantVerdict from
+        # the adapter.  It wraps the same indicator implementation, so this is
+        # not a second physics engine.  A missing/off backend is fail-closed.
+        from app.contracts import QuantRequest
+        quant_series = list(self.sigma._series.get(sym, []))
+        quant_request = QuantRequest(symbol=sym, prices=quant_series,
+                                     parameters={}, as_of_bar=bar,
+                                     execution_mode="paper")
+        quant_result = self.quant_bridge.evaluate(quant_request)
+        quant_unavailable = quant_result.verdict.status == "UNAVAILABLE"
+
         # Outcome-Reifung zuerst: IC lernt aus dem, was vor dem Horizont lag.
         if sig.bars >= 2:
             series = self.sigma._series.get(sym, [])
@@ -1259,6 +1274,7 @@ class AlphaSigmaOrchestrator:
         base: Dict[str, Any] = {
             "schema": "ors-decision/1",
             "symbol": sym, "bar": bar, "alpha": score.to_dict(), "sigma": sig.to_dict(),
+            "quant": quant_result.to_dict(),
             "portfolio": {
                 "equity_usd": round(self.state.portfolio.equity_usd, 2),
                 "available_cash_usd": round(self.state.portfolio.available_cash_usd, 2),
@@ -1288,6 +1304,17 @@ class AlphaSigmaOrchestrator:
                     pending_hooks=pending, ts=base["ts"],
                 )
                 return self._finish(base, intent)
+
+        if quant_unavailable:
+            unavailable_reasons = ["QUANT_BACKEND_UNAVAILABLE"]
+            if sig.bars < 5:
+                unavailable_reasons.insert(0, RejectReason.SIGMA_STATE_MISSING.value)
+            base.update({"verdict": Verdict.REJECTED.value,
+                         "reason_codes": unavailable_reasons, "intent": None,
+                         "quant_fail_closed": True})
+            self.state.journal(base)
+            self.persist()
+            return base
 
         if score.direction == 0 or abs(score.score) < self.cfg.alpha_min_score:
             base.update({"verdict": Verdict.NO_INTENT.value, "reason_codes": [RejectReason.ALPHA_BELOW_THRESHOLD.value],
@@ -1418,6 +1445,7 @@ class AlphaSigmaOrchestrator:
                        if k != "alpha_source_weights"},
             "alpha": self.alpha.snapshot(),
             "sigma": {"telemetry": self.sigma.telemetry(), "dfa_engine_available": _HAVE_DFA},
+            "quant_backend": self.quant_bridge.status(),
             "portfolio": {
                 "equity_usd": round(self.state.portfolio.equity_usd, 2),
                 "available_cash_usd": round(self.state.portfolio.available_cash_usd, 2),

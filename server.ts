@@ -61,7 +61,10 @@ import {
   runRLFastPathInference,
   grokValidateSignalContract,
   grokBiasAudit,
-  grokCostProbe
+  grokCostProbe,
+  getQuantBackendStatus,
+  evaluateSigmaQuant,
+  runJulesNightTrain
 } from "./server/quantitativeEngine";
 import {
   grokEnabled,
@@ -4188,6 +4191,37 @@ app.post("/api/ai/triage", async (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(502).json({ error: err?.message || "Triage fehlgeschlagen", relevant: false });
   }
+});
+
+// ==========================================================================
+// FUSION CONTRACT API — Sigma bridge, blind-safe quant and Night-Train
+// ==========================================================================
+app.get("/api/quant/backend", async (_req: Request, res: Response) => {
+  try { res.json(await getQuantBackendStatus()); }
+  catch (err: any) { res.status(500).json({ error: err?.message || "Quant-Backend nicht lesbar" }); }
+});
+
+app.post("/api/quant/evaluate", async (req: Request, res: Response) => {
+  try {
+    const payload = req.body || {};
+    if (!payload.symbol) return res.status(400).json({ error: "symbol ist Pflicht" });
+    if (payload.execution_mode && payload.execution_mode !== "paper") {
+      return res.status(400).json({ error: "Quant-Adapter sind paper-only" });
+    }
+    res.json(await evaluateSigmaQuant({ ...payload, execution_mode: "paper" }));
+  } catch (err: any) { res.status(502).json({ error: err?.message || "Sigma-Auswertung fehlgeschlagen", fail_closed: true }); }
+});
+
+app.post("/api/academy/night-train", async (req: Request, res: Response) => {
+  try {
+    const body = req.body || {};
+    res.json(await runJulesNightTrain({
+      ledger_path: String(body.ledger_path || process.env.PAPER_LEDGER_FILE || "data/paper/paper_intents.jsonl"),
+      dry_run: body.dry_run !== false,
+      max_records: Math.min(5000, Math.max(0, Number(body.max_records || 500))),
+      max_cost_usd: 0,
+    }));
+  } catch (err: any) { res.status(502).json({ error: err?.message || "Night-Train fehlgeschlagen", fail_closed: true }); }
 });
 
 // =========================================================================
