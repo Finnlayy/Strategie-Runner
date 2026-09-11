@@ -53,9 +53,9 @@ series is too short).  Existing exit-first handling remains intact.
 
 HTTP helpers:
 
-* `GET /api/quant/backend` — selected backend and availability.
-* `POST /api/quant/evaluate` — evaluate a `QuantRequest`; paper mode is forced.
-* `POST /api/orchestrator/cycle` — existing ALPHA/SIGMA/Grok cycle, now carries
+* `GET /api/quant/backend` â€” selected backend and availability.
+* `POST /api/quant/evaluate` â€” evaluate a `QuantRequest`; paper mode is forced.
+* `POST /api/orchestrator/cycle` â€” existing ALPHA/SIGMA/Grok cycle, now carries
   the bridge result in the decision.
 
 ## Gap list (hypotheses, not fake canonical physics)
@@ -67,7 +67,7 @@ separate Sigma harvest tree was supplied.  Therefore the following are **open**:
    an interface point).
 2. Canonical MP-04/physics implementation and its fixture corpus.
 3. Canonical Kraken paper-fill semantics (fees, partial fills and event IDs).
-4. Glint×OB / Polymarket Layer-0 provenance and schemas.
+4. GlintÃ—OB / Polymarket Layer-0 provenance and schemas.
 5. M8/Judge parity fixture exchange across all symbols.
 
 The bridge marks these as data/adapter gaps; it does not invent a canonical
@@ -81,3 +81,9 @@ indicator parity.
   `QuantVerdict.status == UNAVAILABLE`, `fail_closed == true`;
 * `QUANT_BACKEND=off`: same fail-closed result by policy;
 * `execution_mode=live`: rejected at contract boundary.
+## Local Windows harvest adapter (P1)
+
+- Module: `app.quant.sigma_harvest_adapter`
+- Env: `SIGMA_QUANT_MODULE=app.quant.sigma_harvest_adapter` and `SIGMA_HARVEST_ROOT=D:\GrokTrading\harvests\sigma`
+- Smoke: `python scripts/smoke_sigma_bridge.py` (off / missing harvest fail-closed / happy path + Blind/Night-Train)
+- Physics remain Runner `sigma_indicators`; harvest tree presence is the SoT gate (no second engine, paper-only).
