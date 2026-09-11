@@ -110,11 +110,19 @@ import {
   orsReset,
 } from "./server/orchestratorEngine";
 import { runAlphaSigmaCycle, grokAlphaVotes, sigmaHurstViaCodeInterpreter, buildXSearchHandles } from "./server/grokOrchestrator";
+import {
+  appendEvent,
+  loadRecentEvents,
+  exportEventsCsv,
+  eventLogStats,
+  EVENT_LOG_FILE,
+  type ExecutionEvent,
+} from "./server/eventLog";
 
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -1182,19 +1190,67 @@ function saveStrategyManifest(): void {
 loadStrategyManifest();
 
 // Helper to push logs and keep array size under control
-function addLog(level: 'info' | 'warn' | 'error' | 'trade', message: string, strategyId?: string) {
+export interface LogMeta {
+  kind?: ExecutionEvent["kind"];
+  symbol?: string;
+  executionMode?: "paper" | "live";
+  persist?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+function addLog(
+  level: "info" | "warn" | "error" | "trade",
+  message: string,
+  strategyId?: string,
+  meta?: LogMeta,
+) {
+  const kind = meta?.kind || (level === "trade" ? "trade" : level === "error" ? "error" : "log");
+  const persist = meta?.persist !== false;
+  let stored: ExecutionEvent | undefined;
+  if (persist) {
+    try {
+      stored = appendEvent({
+        level,
+        kind,
+        message,
+        strategyId,
+        symbol: meta?.symbol,
+        executionMode: meta?.executionMode || (isKrakenPaperTrading() ? "paper" : "live"),
+        metadata: meta?.metadata,
+      });
+    } catch (err) {
+      console.error("[eventLog] persist failed:", err);
+    }
+  }
   const newLog: ExecutionLog = {
-    id: `log-${Date.now()}-${crypto.randomUUID()}`,
-    timestamp: new Date().toISOString(),
+    id: stored?.id || `log-${Date.now()}-${crypto.randomUUID()}`,
+    timestamp: stored?.timestamp || new Date().toISOString(),
     level,
     message,
-    strategyId
+    strategyId,
   };
   logs.push(newLog);
   if (logs.length > 250) {
     logs.shift();
   }
 }
+
+function hydrateLogsFromDisk() {
+  try {
+    const recent = loadRecentEvents(250);
+    if (!recent.length) return;
+    logs = recent.map((e) => ({
+      id: e.id,
+      timestamp: e.timestamp,
+      level: e.level,
+      message: e.message,
+      strategyId: e.strategyId,
+    }));
+  } catch (err) {
+    console.error("[eventLog] hydrate failed:", err);
+  }
+}
+hydrateLogsFromDisk();
 
 // Emergency Cancel All Handler (Kraken CLI daemon signal + Kraken Exchange Engine)
 function triggerEmergencyCancelAll(strategyId?: string, reason?: string): { stoppedCount: number; message: string } {
@@ -1544,9 +1600,30 @@ async function executeKrakenTrade(strategyId: string, type: 'buy' | 'sell', rawA
   if (orders.length > 50) orders.pop();
   allTimeOrders.unshift(newOrder);
 
-  if (!hasKrakenCredentials()) {
-    addLog('trade', `[${isPaper ? 'LEVEL 2: PAPER QUEUE' : 'LEVEL 4: LIVE QUEUE'}] ${type.toUpperCase()} ${amount} ${baseAsset} @ $${price.toLocaleString()} USD (Total: $${total.toLocaleString()} USD) - Filled at live Kraken price`, strategyId);
-  }
+  addLog(
+    "trade",
+    `FILL ${type.toUpperCase()} ${amount} ${pair} @ $${price} (total $${total}` +
+      (tradePnL !== undefined ? `, pnl $${tradePnL}` : "") +
+      `) [${isPaper ? "paper" : "live"}]`,
+    strategyId,
+    {
+      kind: "trade",
+      symbol: pair,
+      executionMode: isPaper ? "paper" : "live",
+      metadata: {
+        orderId: uniqueId,
+        krakenOrderId: krakenOrderId || null,
+        strategyName,
+        side: type,
+        amount,
+        price,
+        total,
+        pnl: tradePnL ?? null,
+        status: "filled",
+        pair,
+      },
+    },
+  );
 
   // Synchronize state and P&L to persistent manifest
   saveStrategyManifest();
@@ -2008,6 +2085,26 @@ app.post("/api/run", (req: Request, res: Response) => {
 });
 
 // GET Logs and Metrics
+app.get("/api/logs/export", (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(100000, Math.max(1, Number(req.query.limit || 100000)));
+    const out = exportEventsCsv(limit);
+    addLog("info", `[EventLog] CSV export ${out.count} events -> ${out.file}`, undefined, {
+      kind: "system",
+      metadata: { count: out.count, file: out.file },
+    });
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${path.basename(out.file)}"`);
+    res.send(out.csv);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "CSV-Export fehlgeschlagen" });
+  }
+});
+
+app.get("/api/logs/stats", (_req: Request, res: Response) => {
+  res.json({ ...eventLogStats(), uiBuffer: logs.length });
+});
+
 app.get("/api/logs", (req: Request, res: Response) => {
   const isPaper = isKrakenPaperTrading();
   const automationLevel = getKrakenAutomationLevel();
@@ -2113,6 +2210,8 @@ app.get("/api/logs", (req: Request, res: Response) => {
   };
 
   res.json({
+    persistedLogFile: EVENT_LOG_FILE,
+    persistedLog: eventLogStats(),
     logs,
     metrics: systemMetrics,
     orders,
@@ -4208,20 +4307,50 @@ app.post("/api/quant/evaluate", async (req: Request, res: Response) => {
     if (payload.execution_mode && payload.execution_mode !== "paper") {
       return res.status(400).json({ error: "Quant-Adapter sind paper-only" });
     }
-    res.json(await evaluateSigmaQuant({ ...payload, execution_mode: "paper" }));
-  } catch (err: any) { res.status(502).json({ error: err?.message || "Sigma-Auswertung fehlgeschlagen", fail_closed: true }); }
+    const result = await evaluateSigmaQuant({ ...payload, execution_mode: "paper" });
+    addLog(
+      result?.verdict?.status === "UNAVAILABLE" || result?.verdict?.fail_closed ? "warn" : "info",
+      `[Quant] ${payload.symbol || "?"} status=${result?.verdict?.status || "?"} regime=${result?.regime?.regime || "?"}`,
+      undefined,
+      {
+        kind: "evaluate",
+        symbol: String(payload.symbol || ""),
+        executionMode: "paper",
+        metadata: {
+          request_id: result?.verdict?.request_id || result?.request?.request_id,
+          status: result?.verdict?.status,
+          reasons: result?.verdict?.reasons,
+          regime: result?.regime?.regime,
+          confidence: result?.regime?.confidence,
+        },
+      },
+    );
+    res.json(result);
+  } catch (err: any) {
+    addLog("error", `[Quant] evaluate failed: ${err?.message || err}`, undefined, { kind: "evaluate", executionMode: "paper" });
+    res.status(502).json({ error: err?.message || "Sigma-Auswertung fehlgeschlagen", fail_closed: true });
+  }
 });
 
 app.post("/api/academy/night-train", async (req: Request, res: Response) => {
   try {
     const body = req.body || {};
-    res.json(await runJulesNightTrain({
+    const nt = await runJulesNightTrain({
       ledger_path: String(body.ledger_path || process.env.PAPER_LEDGER_FILE || "data/paper/paper_intents.jsonl"),
       dry_run: body.dry_run !== false,
       max_records: Math.min(5000, Math.max(0, Number(body.max_records || 500))),
       max_cost_usd: 0,
-    }));
-  } catch (err: any) { res.status(502).json({ error: err?.message || "Night-Train fehlgeschlagen", fail_closed: true }); }
+    });
+    addLog("info", `[Night-Train] ${nt?.status || "done"} dry_run=${nt?.dry_run !== false}`, undefined, {
+      kind: "night_train",
+      executionMode: "paper",
+      metadata: { status: nt?.status, errors: nt?.errors, report_id: nt?.report_id, budget: nt?.budget },
+    });
+    res.json(nt);
+  } catch (err: any) {
+    addLog("error", `[Night-Train] failed: ${err?.message || err}`, undefined, { kind: "night_train" });
+    res.status(502).json({ error: err?.message || "Night-Train fehlgeschlagen", fail_closed: true });
+  }
 });
 
 // =========================================================================
@@ -5099,7 +5228,12 @@ app.use((err: any, req: Request, res: Response, next: any) => {
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        watch: {
+          ignored: ["**/data/**", "**/node_modules/**", "**/.git/**"],
+        },
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -5113,6 +5247,22 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    addLog("info", `[System] Server running on http://localhost:${PORT} paper=${isKrakenPaperTrading()}`, undefined, {
+      kind: "system",
+      executionMode: isKrakenPaperTrading() ? "paper" : "live",
+      metadata: { port: PORT, pid: process.pid, eventLog: EVENT_LOG_FILE },
+    });
+  });
+
+  process.on("uncaughtException", (err) => {
+    try { addLog("error", `[System] uncaughtException: ${err?.message || err}`, undefined, { kind: "error", metadata: { stack: String(err?.stack || "").slice(0, 2000) } }); }
+    catch { /* ignore */ }
+    console.error(err);
+  });
+  process.on("unhandledRejection", (reason) => {
+    try { addLog("error", `[System] unhandledRejection: ${reason}`, undefined, { kind: "error" }); }
+    catch { /* ignore */ }
+    console.error(reason);
   });
 }
 

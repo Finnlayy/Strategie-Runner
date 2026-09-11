@@ -19,7 +19,10 @@ export default defineConfig(() => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      watch: process.env.DISABLE_HMR === 'true' ? null : {
+        // Runtime JSON under data/ is rewritten often (strategy-manifest) — must not full-reload the UI
+        ignored: ['**/data/**', '**/node_modules/**', '**/.git/**'],
+      },
       // Preview-/Deployment-Hosts akzeptieren (AI Studio Cloud Run + Sandbox-Preview).
       // Ohne diesen Eintrag antwortet der Dev-Server auf fremde Host-Header mit 403.
       allowedHosts: process.env.ALLOWED_HOSTS

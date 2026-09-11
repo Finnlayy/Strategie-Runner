@@ -1,28 +1,85 @@
-import { exec } from "child_process";
+import { exec, execFile } from "child_process";
+import fs from "fs";
+import os from "os";
+import path from "path";
 
 /**
  * Executes python3 commands with serialized JSON output.
  */
-export function runPythonCommand(cmd: string): Promise<any> {
+function pythonBin(): string {
+  return process.platform === "win32" ? "python" : "python3";
+}
+
+function parsePythonJson(stdout: string): any {
+  const trimmed = stdout.trim();
+  const firstBrace = trimmed.indexOf("{");
+  const firstBracket = trimmed.indexOf("[");
+  let startIdx = 0;
+  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) startIdx = firstBrace;
+  else if (firstBracket !== -1) startIdx = firstBracket;
+  return JSON.parse(trimmed.substring(startIdx));
+}
+
+/** Windows-safe: write a temp .py file instead of bash-style python -c '...' */
+export function runPythonScript(code: string, args: string[] = []): Promise<any> {
   return new Promise((resolve, reject) => {
-    exec(cmd, { cwd: process.cwd(), maxBuffer: 25 * 1024 * 1024, timeout: 8000 }, (error, stdout, stderr) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sr-py-"));
+    const file = path.join(dir, "run.py");
+    fs.writeFileSync(file, code, "utf8");
+    const cwd = process.cwd();
+    const env = {
+      ...process.env,
+      PYTHONPATH: cwd + path.delimiter + (process.env.PYTHONPATH || ""),
+    };
+    execFile(
+      pythonBin(),
+      ["-W", "ignore", file, ...args],
+      { cwd, env, maxBuffer: 25 * 1024 * 1024, timeout: 30000 },
+      (error, stdout, stderr) => {
+        try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+        if (error) {
+          console.error(`[Python Quantitative Engine Error] ${error.message}\nStderr: ${stderr}`);
+          return reject(new Error(stderr || error.message));
+        }
+        try {
+          resolve(parsePythonJson(stdout));
+        } catch (err: any) {
+          console.warn(`[Python Quantitative Engine] JSON parse notice: ${stdout.substring(0, 200)}`);
+          resolve({ raw: stdout });
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Executes python commands with serialized JSON output.
+ * Prefer runPythonScript on Windows; this remains for legacy callers.
+ */
+export function runPythonCommand(cmd: string): Promise<any> {
+  if (process.platform === "win32") {
+    const m = cmd.match(/^python3\s+-W\s+ignore\s+-c\s+'([\s\S]*)'(?:\s+(.+))?$/);
+    if (m) {
+      const code = m[1].replace(/'\\''/g, "'");
+      const rest = (m[2] || "").trim();
+      const args: string[] = [];
+      if (rest) {
+        const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
+        let x: RegExpExecArray | null;
+        while ((x = re.exec(rest))) args.push(x[1] ?? x[2] ?? x[3]);
+      }
+      return runPythonScript(code, args);
+    }
+    cmd = cmd.replace(/^python3\b/, "python");
+  }
+  return new Promise((resolve, reject) => {
+    exec(cmd, { cwd: process.cwd(), maxBuffer: 25 * 1024 * 1024, timeout: 30000 }, (error, stdout, stderr) => {
       if (error) {
         console.error(`[Python Quantitative Engine Error] ${error.message}\nStderr: ${stderr}`);
         return reject(new Error(stderr || error.message));
       }
       try {
-        const trimmed = stdout.trim();
-        const firstBrace = trimmed.indexOf("{");
-        const firstBracket = trimmed.indexOf("[");
-        let startIdx = 0;
-        if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
-          startIdx = firstBrace;
-        } else if (firstBracket !== -1) {
-          startIdx = firstBracket;
-        }
-        const jsonStr = trimmed.substring(startIdx);
-        const parsed = JSON.parse(jsonStr);
-        resolve(parsed);
+        resolve(parsePythonJson(stdout));
       } catch (err: any) {
         console.warn(`[Python Quantitative Engine] JSON parse notice: ${stdout.substring(0, 200)}`);
         resolve({ raw: stdout });
@@ -448,7 +505,7 @@ import json
 from app.quant.sigma_bridge import quant_backend_status
 print(json.dumps(quant_backend_status()))
 `;
-  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
+  return runPythonScript(pyCode);
 }
 
 export async function evaluateSigmaQuant(payload: Record<string, any>): Promise<any> {
@@ -458,7 +515,7 @@ from app.quant.sigma_bridge import SigmaQuantBridge
 req = json.loads(base64.b64decode(sys.argv[1]).decode("utf-8"))
 print(json.dumps(SigmaQuantBridge().evaluate_payload(req), default=str))
 `;
-  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}' '${b64(payload)}'`);
+  return runPythonScript(pyCode, [b64(payload)]);
 }
 
 export async function runJulesNightTrain(payload: Record<string, any> = {}): Promise<any> {
@@ -468,5 +525,6 @@ from app.academy.night_train import run_night_train
 req = json.loads(base64.b64decode(sys.argv[1]).decode("utf-8")) or {}
 print(json.dumps(run_night_train(**req), default=str))
 `;
-  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}' '${b64(payload)}'`);
+  return runPythonScript(pyCode, [b64(payload)]);
 }
+

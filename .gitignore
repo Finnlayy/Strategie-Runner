@@ -24,3 +24,18 @@ data/orchestrator/ors_state.json
 
 data/orchestrator/parity_evidence_*.json
 data/orchestrator/parity_evidence_latest.json
+
+# --- Runtime logs & metadata (never commit) ---
+data/paper/
+data/logs/
+data/lake/
+data/academy/
+data/registry/*.jsonl
+data/registry/*.json
+data/registry/strategies/
+data/orchestrator/*.json
+data/orchestrator/*.jsonl
+data/strategy-manifest.json
+data/**/*.parquet
+data/**/*.csv
+data/paper/exports/
