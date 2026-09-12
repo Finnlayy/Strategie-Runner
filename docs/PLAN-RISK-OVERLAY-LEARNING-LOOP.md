@@ -3,7 +3,81 @@
 Stand: 2026-09-12  
 Repo: `Finnlayy/Strategie-Runner` (`main`)  
 Owner: Finn / Peter  
-Status: **Plan only** — kein Code in diesem Commit.
+Status: **Plan + Auftrag an den GitHub-Agenten.**  
+Peter verdrahtet spaeter nur noch gegen echte lokale Daten.
+
+---
+
+## Auftrag an den GitHub-Agenten (kein Lokalzugriff)
+
+Du liest nur dieses Repo auf GitHub. Du hast **kein** `data/paper`, kein Lake,
+kein `.env`, keine Keys. Das ist Absicht.
+
+**Deine Lieferung ist Pseudocode plus Typen plus Fixtures**, damit Peter
+(lokaler Ops-Agent) nur noch drei echte Quellen einhaengen muss:
+Kraken-WS-Tick, Lake-`query_range`, `execution_logs.jsonl`.
+
+### Sollst du tun
+
+1. Lege unter `docs/pseudocode/` ab (Markdown, kein ausfuehrbarer Broker-Code):
+   - `00-types.md` — `DataApproval`, `OverlayVerdict`, Event-Zusatzfelder,
+     Scorecard-Row. Exakte Feldnamen aus diesem Plan.
+   - `01-data-approved.md` — Funktion `approveSymbol(input) -> DataApproval`.
+     D1–D8 als pure Funktionen. Inputs sind **injizierte Snapshots**, nicht
+     `fs.read` auf `data/lake`.
+   - `02-risk-overlay.md` — `applyOverlay(ctx) -> OverlayVerdict`. R0–R8,
+     nur verengen, Reihenfolge fest. Kein Live-Dispatch.
+   - `03-screener.md` — `propose(symbol, regime, catalog, scorecard) -> module_id | hold`.
+     Ein Sieger, Hysterese-Kommentar, Alternativen-Liste.
+   - `04-learn-from-journal.md` — `parseEvents(lines) -> rows`, `upsertScorecard`.
+     Idempotent ueber Event-`id`. `LEARN_APPLY` Default false.
+   - `05-wiring-map.md` — Tabelle: welche 8–12 Zeilen Peter in `server.ts` /
+     Lake-Panel / SystemLogs haengt (Funktionsname, Datei, davor/danach).
+2. Lege unter `tests/fixtures/risk-overlay/` **kleine** JSON-Fixtures ab
+   (keine echten Logs): je ein stale-tick, synthetic-lake, daily-loss,
+   live-gate-block, zwei-Module-Scorecard, zwei Symbole gleiches Modul.
+3. Optional: leere Stubs `server/dataApproval.ts`, `server/riskOverlay.ts`,
+   `server/playbookScreener.ts` die die Signaturen exportieren und
+   `throw new Error("not wired")` — kein `addOrder`, kein Kraken-Private.
+4. Tests gegen die Fixtures, Windows-tauglich (`python` / `tsx`, kein
+   `python3 -c` mit bash-Quotes).
+5. PR oder Commit auf einem Feature-Branch ist ok; **kein** Force auf `main`,
+   **kein** Anfassen von `.env`, `data/`, Keys, Live-Flags.
+
+### Sollst du nicht tun
+
+- `data/paper/execution_logs.jsonl` oder Lake-Parquet voraussetzen oder erfinden.
+- 51k Zeilen simulieren. Fixtures bleiben < 30 Events.
+- Live-Order, CancelAll, Private-REST, MCP `--allow-dangerous`.
+- Modul-Forks `BtcDcaEngine`. DCA/Reverse-DCA nur als Beispiele im Catalog.
+- Prompt-Agent, der Weights oder Size schreibt.
+- Secrets, Tokens, Account-IDs in Fixtures.
+- Die lokalen uncommitteten Lake/UI-Aenderungen von Peter nachbauen
+  (WS-Stream, System-Logs-Tab, Backfill) — die verdrahtet Peter.
+
+### Definition of done fuer dich
+
+Peter kann ohne dich oeffnen:
+
+- `docs/pseudocode/05-wiring-map.md`
+- die vier Pseudocode-Dateien
+- die Fixtures
+
+und in einem kurzen lokalen Pass ersetzen: Snapshot-Input → echte
+`approveSymbol()`-Adapter. Wenn er mehr als Adapter schreiben muss,
+war der Pseudocode zu duenn.
+
+### Hinweise zum Ist-Code auf GitHub `main`
+
+- Journal-Schema: `server/eventLog.ts` (`appendEvent`, `loadRecentEvents`,
+  `kind`, `scrubMetadata`). Zusatzfelder nur additiv.
+- Alpha/Sigma-Gewaltenteilung: `docs/ORCHESTRATOR-ALPHA-SIGMA.md`.
+- Event-API: `GET /api/logs`, `/api/logs/stats`, `/api/logs/export`.
+- Paper-Gates und `addLog` leben in `server.ts` — du verdrahtest sie nicht.
+- `execution_logs.jsonl` ist gitignored. Deine Parser-Tests nutzen nur Fixtures.
+
+---
+
 
 Dieser Plan beschreibt die zwei Bausteine, die zwischen dem laufenden Runner
 und der 8-Spur-Fabrik aus dem Cockpit-Diagramm wirklich fehlen:
