@@ -1,0 +1,34 @@
+{
+  "description": "Fixture testing D6 Broker Origin check failure (ETH synthetic lake partition)",
+  "snapshot": {
+    "symbol": "ETH/USD",
+    "nowUtcMs": 1773302405000,
+    "tick": {
+      "lastPrice": 3200.0,
+      "bid": 3199.5,
+      "ask": 3200.5,
+      "timestampMs": 1773302402000,
+      "source": "websocket",
+      "isSynthetic": false
+    },
+    "lake": {
+      "firstBarUtc": "2026-09-11T20:00:00Z",
+      "lastBarUtc": "2026-09-12T07:59:00Z",
+      "totalRowsInWindow": 720,
+      "expectedRowsInWindow": 720,
+      "brokerTag": "synthetic",
+      "isReadable": true
+    },
+    "pairStatus": {
+      "isOnline": true,
+      "isHalting": false,
+      "minOrderVolume": 0.001
+    },
+    "exchangeClockDeltaMs": 100
+  },
+  "expected": {
+    "approved": false,
+    "codes": ["DATA_SYNTHETIC_LAKE"],
+    "lakeBroker": "synthetic"
+  }
+}

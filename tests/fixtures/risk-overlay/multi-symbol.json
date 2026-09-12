@@ -1,0 +1,66 @@
+{
+  "description": "Fixture evaluating same generic module (mean_reversion_rsi) across two symbol instances: BTC/USD (data approved) vs SOL/USD (data stale tick)",
+  "symbols": [
+    {
+      "symbol": "BTC/USD",
+      "snapshot": {
+        "symbol": "BTC/USD",
+        "nowUtcMs": 1773302405000,
+        "tick": {
+          "lastPrice": 88500.0,
+          "bid": 88495.0,
+          "ask": 88505.0,
+          "timestampMs": 1773302402000,
+          "source": "websocket",
+          "isSynthetic": false
+        },
+        "lake": {
+          "firstBarUtc": "2026-09-11T20:00:00Z",
+          "lastBarUtc": "2026-09-12T07:59:00Z",
+          "totalRowsInWindow": 720,
+          "expectedRowsInWindow": 720,
+          "brokerTag": "kraken",
+          "isReadable": true
+        },
+        "pairStatus": {
+          "isOnline": true,
+          "isHalting": false,
+          "minOrderVolume": 0.0001
+        },
+        "exchangeClockDeltaMs": 100
+      },
+      "expectedApproved": true
+    },
+    {
+      "symbol": "SOL/USD",
+      "snapshot": {
+        "symbol": "SOL/USD",
+        "nowUtcMs": 1773302435000,
+        "tick": {
+          "lastPrice": 185.0,
+          "bid": 184.9,
+          "ask": 185.1,
+          "timestampMs": 1773302400000,
+          "source": "websocket",
+          "isSynthetic": false
+        },
+        "lake": {
+          "firstBarUtc": "2026-09-11T20:00:00Z",
+          "lastBarUtc": "2026-09-12T07:59:00Z",
+          "totalRowsInWindow": 720,
+          "expectedRowsInWindow": 720,
+          "brokerTag": "kraken",
+          "isReadable": true
+        },
+        "pairStatus": {
+          "isOnline": true,
+          "isHalting": false,
+          "minOrderVolume": 0.01
+        },
+        "exchangeClockDeltaMs": 100
+      },
+      "expectedApproved": false,
+      "expectedCode": "DATA_STALE_TICK"
+    }
+  ]
+}
