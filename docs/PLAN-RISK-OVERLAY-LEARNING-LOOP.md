@@ -15,6 +15,14 @@ Peter verdrahtet danach nur Adapter. Dein Job ist der Grossteil der Denkarbeit:
 Pseudocode, Typen, Fixtures, Wiring-Map — so klar, dass Peter nicht nochmal
 das Design erfinden muss.
 
+### Arbeitsweise: Schwarm, parallel
+
+Nutze deine Schwarmagenten. Zerlege die Lieferung und fahr sie **gleichzeitig**:
+Types, Data-Approved, Overlay, Screener, Journal-Learn, Fixtures. Ein Agent
+haelt die Trennlinien (Sigma verfuegt / Alpha beantragt / NIO-Limb). Kein
+serielles Abarbeiten der sechs Dateien, wenn sie sich nicht blockieren.
+Ein kurzes Swarm-Digest oben in `05-wiring-map.md`: wer was geliefert hat.
+
 ### Freiheit vs. hart
 
 **Hart (nicht verhandelbar):** die Invarianten in §0, fail-closed, nur verengen,
