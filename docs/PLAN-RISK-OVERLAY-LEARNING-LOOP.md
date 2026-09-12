@@ -10,84 +10,102 @@ Peter verdrahtet spaeter nur noch gegen echte lokale Daten.
 
 ## Auftrag an den GitHub-Agenten (kein Lokalzugriff)
 
-Du liest nur dieses Repo auf GitHub. Du hast **kein** `data/paper`, kein Lake,
-kein `.env`, keine Keys. Das ist Absicht.
+Du liest GitHub, nicht Finns Platte. Kein `data/paper`, kein Lake, kein `.env`.
+Peter verdrahtet danach nur Adapter. Dein Job ist der Grossteil der Denkarbeit:
+Pseudocode, Typen, Fixtures, Wiring-Map — so klar, dass Peter nicht nochmal
+das Design erfinden muss.
 
-**Deine Lieferung ist Pseudocode plus Typen plus Fixtures**, damit Peter
-(lokaler Ops-Agent) nur noch drei echte Quellen einhaengen muss:
-Kraken-WS-Tick, Lake-`query_range`, `execution_logs.jsonl`.
+### Freiheit vs. hart
 
-### Sollst du tun
+**Hart (nicht verhandelbar):** die Invarianten in §0, fail-closed, nur verengen,
+AI niemals Live-Order, Module symbol-agnostisch, Snapshot-Inputs statt
+`data/`-Reads, keine Secrets, kein Force auf `main`.
 
-1. Lege unter `docs/pseudocode/` ab (Markdown, kein ausfuehrbarer Broker-Code):
-   - `00-types.md` — `DataApproval`, `OverlayVerdict`, Event-Zusatzfelder,
-     Scorecard-Row. Exakte Feldnamen aus diesem Plan.
-   - `01-data-approved.md` — Funktion `approveSymbol(input) -> DataApproval`.
-     D1–D8 als pure Funktionen. Inputs sind **injizierte Snapshots**, nicht
-     `fs.read` auf `data/lake`.
-   - `02-risk-overlay.md` — `applyOverlay(ctx) -> OverlayVerdict`. R0–R8,
-     nur verengen, Reihenfolge fest. Kein Live-Dispatch.
-   - `03-screener.md` — `propose(symbol, regime, catalog, scorecard) -> module_id | hold`.
-     Ein Sieger, Hysterese-Kommentar, Alternativen-Liste.
-   - `04-learn-from-journal.md` — `parseEvents(lines) -> rows`, `upsertScorecard`.
-     Idempotent ueber Event-`id`. `LEARN_APPLY` Default false.
-   - `05-wiring-map.md` — Tabelle: welche 8–12 Zeilen Peter in `server.ts` /
-     Lake-Panel / SystemLogs haengt (Funktionsname, Datei, davor/danach).
-2. Lege unter `tests/fixtures/risk-overlay/` **kleine** JSON-Fixtures ab
-   (keine echten Logs): je ein stale-tick, synthetic-lake, daily-loss,
-   live-gate-block, zwei-Module-Scorecard, zwei Symbole gleiches Modul.
-3. Optional: leere Stubs `server/dataApproval.ts`, `server/riskOverlay.ts`,
-   `server/playbookScreener.ts` die die Signaturen exportieren und
-   `throw new Error("not wired")` — kein `addOrder`, kein Kraken-Private.
-4. Tests gegen die Fixtures, Windows-tauglich (`python` / `tsx`, kein
-   `python3 -c` mit bash-Quotes).
-5. PR oder Commit auf einem Feature-Branch ist ok; **kein** Force auf `main`,
-   **kein** Anfassen von `.env`, `data/`, Keys, Live-Flags.
+**Frei:** Schwellen, zusaetzliche Gates, Dateischnitt, Funktionsnamen soweit
+nicht schon im Repo, Fixture-Zuschnitt, bessere Typen wenn du sie begruendest,
+Reihenfolge der Hilfsfunktionen. Wenn du von einem Startwert in §3–5 abweichst:
+eine Zeile *warum*, angelehnt an NIO / Sigma / Alpha, nicht an Bauchgefuehl.
 
-### Sollst du nicht tun
+Erfinde keine zweiten Journal-Formate und keine parallele SoT neben Parquet+DuckDB
+bzw. `execution_logs.jsonl`. Erweitere additiv.
 
-- `data/paper/execution_logs.jsonl` oder Lake-Parquet voraussetzen oder erfinden.
-- 51k Zeilen simulieren. Fixtures bleiben < 30 Events.
-- Live-Order, CancelAll, Private-REST, MCP `--allow-dangerous`.
-- Modul-Forks `BtcDcaEngine`. DCA/Reverse-DCA nur als Beispiele im Catalog.
-- Prompt-Agent, der Weights oder Size schreibt.
-- Secrets, Tokens, Account-IDs in Fixtures.
-- Die lokalen uncommitteten Lake/UI-Aenderungen von Peter nachbauen
-  (WS-Stream, System-Logs-Tab, Backfill) — die verdrahtet Peter.
+### Woran du dich orientierst
 
-### Definition of done fuer dich
+Nicht eine leere 8-Agenten-Folie. Drei bestehende Stapel, in dieser Prioritaet:
 
-Peter kann ohne dich oeffnen:
+1. **Sigma** (Quant / Risiko / SoT-Physik)  
+   Im Runner: `docs/ORCHESTRATOR-ALPHA-SIGMA.md`, `docs/SIGMA-QUANT-BRIDGE.md`,
+   `app/execution/m8_judge.py`, `app/execution/kelly_sizing.py`,
+   `app/orchestrator/alpha_sigma_engine.py`.  
+   Sigma verfuegt: Vol-Target, Regime, Caps, Cooldown, Breaker. Overlay ist
+   diese Kammer ueber alle Schichten, nicht ein neues Risikomaerchen.
 
-- `docs/pseudocode/05-wiring-map.md`
-- die vier Pseudocode-Dateien
-- die Fixtures
+2. **Alpha** (Antrag / Kammer / IC-Lernen)  
+   Dieselben Docs: Alpha beantragt, altert, filtert nach Regime, lernt nur
+   ueber Information-Coefficient / EWMA-Gewicht in einem Clamp — nicht per
+   LLM-Rewrite der Strategie. Screener+Scorecard sollen sich an dieser
+   Kammer anlehnen (Modul statt Grok-Quelle), nicht an einem Prompt-Agenten.
 
-und in einem kurzen lokalen Pass ersetzen: Snapshot-Input → echte
-`approveSymbol()`-Adapter. Wenn er mehr als Adapter schreiben muss,
-war der Pseudocode zu duenn.
+3. **NIO** (Judge / Limb / Lernen als Kernel, nicht als duennes Math-Stub)  
+   Oeffentliche Finnlayy-Repos und was der Runner davon schon geerntet hat.
+   Nimm Judge-Barrieren, Limb-Trennung (Signal vs. Size vs. Route) und
+   Learning-Hooks als **Muster**. Kopiere keine symbol-verdrahteten Module
+   (der Architect-Fehler: generisches Limb als BTC-only). NIO ist gross;
+   du brauchst nicht den ganzen Kernel — du brauchst die Trennlinien.
 
-### Hinweise zum Ist-Code auf GitHub `main`
+TradingView ist optional/abnehmbar. Pine ist nicht Pflicht. MT5/ONNX ist
+nicht SoT. Glint/Polymarket ist Phase 4, nicht dein Erstlieferumfang.
 
-- Journal-Schema: `server/eventLog.ts` (`appendEvent`, `loadRecentEvents`,
-  `kind`, `scrubMetadata`). Zusatzfelder nur additiv.
-- Alpha/Sigma-Gewaltenteilung: `docs/ORCHESTRATOR-ALPHA-SIGMA.md`.
-- Event-API: `GET /api/logs`, `/api/logs/stats`, `/api/logs/export`.
-- Paper-Gates und `addLog` leben in `server.ts` — du verdrahtest sie nicht.
-- `execution_logs.jsonl` ist gitignored. Deine Parser-Tests nutzen nur Fixtures.
+Wenn Sigma und NIO sich in einem Detail beissen: **Sigma gewinnt fuer Size
+und Gate, Alpha/NIO fuer Antrag und Lernsignal.** Kurz begruenden.
 
----
+### Was du lieferst
 
+Unter `docs/pseudocode/` (Markdown, lesbarer Pseudocode, kein Broker-Call):
 
-Dieser Plan beschreibt die zwei Bausteine, die zwischen dem laufenden Runner
-und der 8-Spur-Fabrik aus dem Cockpit-Diagramm wirklich fehlen:
+| Datei | Inhalt | Du entscheidest |
+|---|---|---|
+| `00-types.md` | `DataApproval`, Overlay-Verdict, Event-Zusatzfelder, Scorecard-Row | Namen-Aliase, optionale Felder |
+| `01-data-approved.md` | `approveSymbol(snapshot) -> approval` fuer die D-Checks | Extra-Checks, Schwellen |
+| `02-risk-overlay.md` | `applyOverlay(ctx) -> verdict`, R-Gates, nur verengen | Extra-Gates, Mapping auf M8 |
+| `03-screener.md` | `propose(...)` ein Sieger oder Hold | Score-Formel, Hysterese |
+| `04-learn-from-journal.md` | parse + upsert, idempotent, `LEARN_APPLY` default false | EWMA-Details analog Alpha-IC |
+| `05-wiring-map.md` | 8–15 konkrete Einhängepunkte in *vorhandenem* `main`-Code | welche Datei zuerst |
 
-1. **Risk-Overlay auf allen Schichten** plus hartes **Data-Approved-Flag**.
-2. **Geschlossene Lernschleife** Journal → Memory → Playbook-Vorschlag.
-   Prompt-Agent und Knowledge-Graph sind Vehikel, nicht das Ziel.
+Plus `tests/fixtures/risk-overlay/` — klein (<30 Events), keine echten Logs:
+mindestens stale-tick, synthetic-lake, daily-loss, live-gate, zwei Module
+in einem Regime, **dasselbe Modul auf zwei Symbolen**.
 
-Nicht in diesem Plan: acht neue Agenten-Namen, Company-Knowledge-Graph,
-ONNX/Transformer, TradingView, Live-Autonomie.
+Optionale Stubs `server/dataApproval.ts`, `server/riskOverlay.ts`,
+`server/playbookScreener.ts`: Signatur + `throw new Error("not wired")`.
+Kein `addOrder`, kein Private-REST.
+
+Tests gegen Fixtures, Windows-tauglich (`python` / `tsx`, kein
+`python3 -c` mit bash-Quotes).
+
+PR oder Feature-Branch ist gut. `main` nicht forcen. `.env` / `data/` / Keys
+nicht anfassen. Peters uncommittete lokale Lake/WS/Logs-UI nicht nachbauen.
+
+### Leseliste zuerst (auf GitHub `main`)
+
+1. Dieser Plan, §0 und §3–5 (Zielbild, nicht als Korsett).  
+2. `docs/ORCHESTRATOR-ALPHA-SIGMA.md` — Gewaltenteilung, IC, Sigma-Reihenfolge.  
+3. `docs/SIGMA-QUANT-BRIDGE.md` — was schon geerntet ist.  
+4. `app/execution/m8_judge.py`, `kelly_sizing.py` — echte Gates.  
+5. `app/orchestrator/alpha_sigma_engine.py` — Antrag vs. Verfuegung.  
+6. `server/eventLog.ts` — `ExecutionEvent`, `scrubMetadata`; Felder nur additiv.  
+7. NIO / Alpha-Repos unter Finnlayy, soweit sichtbar: Judge-Barrieren und
+   StrategyInterpreter/archetypes als Inspiration, nicht 1:1-Port.
+
+`GET /api/logs*` und `addLog` in `server.ts` laesst du in Ruhe. Peter haengt.
+
+### Definition of done
+
+Peter oeffnet `05-wiring-map.md` + die vier Pseudocode-Dateien + Fixtures
+und ersetzt nur noch Snapshot-Quellen: Tick, Lake-Query, JSONL-Tail.
+Wenn er Design-Entscheidungen nachholen muss, war die Lieferung zu duenn.
+Wenn er deinen Code nur abtippt ohne zu verstehen, war sie zu starr —
+also: begruendete Wahl, nicht 200 hart codierte Magiezahlen.
 
 ---
 
