@@ -1,0 +1,34 @@
+{
+  "description": "Fixture testing D1 Stream Tick Freshness check failure (> 20,000 ms age)",
+  "snapshot": {
+    "symbol": "BTC/USD",
+    "nowUtcMs": 1773302425000,
+    "tick": {
+      "lastPrice": 88500.0,
+      "bid": 88495.0,
+      "ask": 88505.0,
+      "timestampMs": 1773302400000,
+      "source": "websocket",
+      "isSynthetic": false
+    },
+    "lake": {
+      "firstBarUtc": "2026-09-11T20:00:00Z",
+      "lastBarUtc": "2026-09-12T07:59:00Z",
+      "totalRowsInWindow": 720,
+      "expectedRowsInWindow": 720,
+      "brokerTag": "kraken",
+      "isReadable": true
+    },
+    "pairStatus": {
+      "isOnline": true,
+      "isHalting": false,
+      "minOrderVolume": 0.0001
+    },
+    "exchangeClockDeltaMs": 150
+  },
+  "expected": {
+    "approved": false,
+    "codes": ["DATA_STALE_TICK"],
+    "tickAgeMs": 25000
+  }
+}

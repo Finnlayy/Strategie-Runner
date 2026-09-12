@@ -1,0 +1,50 @@
+{
+  "description": "Fixture testing R5 Daily Loss Circuit Breaker (-3.5% PnL exceeds -3.0% threshold)",
+  "context": {
+    "symbol": "BTC/USD",
+    "moduleId": "mean_reversion_rsi",
+    "proposedSide": "buy",
+    "proposedSize": 0.05,
+    "executionMode": "paper",
+    "isAiLiveOrdersAllowed": false,
+    "dataApproval": {
+      "symbol": "BTC/USD",
+      "approved": true,
+      "asOf": "2026-09-12T08:00:00Z",
+      "codes": [],
+      "tickAgeMs": 1200,
+      "lake": {
+        "first": "2026-09-11T20:00:00Z",
+        "last": "2026-09-12T07:59:00Z",
+        "effectiveRows": 720,
+        "density": 1.0,
+        "broker": "kraken"
+      }
+    },
+    "regime": "MEAN_REVERTING",
+    "portfolio": {
+      "initialPaperBalanceUsd": 10000.0,
+      "equityUsd": 9650.0,
+      "availableCashUsd": 9650.0,
+      "realizedDailyPnlUsd": -250.0,
+      "unrealizedDailyPnlUsd": -100.0,
+      "symbolGrossExposureUsd": 0.0,
+      "totalGrossExposureUsd": 0.0,
+      "openPosition": null
+    },
+    "orderBook": {
+      "bestBid": 88495.0,
+      "bestAsk": 88505.0,
+      "spreadBps": 1.13
+    },
+    "lastModuleExecutionBar": 100,
+    "currentBarIndex": 110,
+    "cooldownBarsRequired": 1
+  },
+  "expected": {
+    "allowOpen": false,
+    "allowReduce": true,
+    "sizeOut": 0.0,
+    "failedGateId": "R5_DAILY_LOSS"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "description": "Fixture testing R8 Live Gate failure (executionMode live but AI_LIVE_ORDERS false)",
+  "context": {
+    "symbol": "BTC/USD",
+    "moduleId": "momentum_breakout",
+    "proposedSide": "buy",
+    "proposedSize": 0.02,
+    "executionMode": "live",
+    "isAiLiveOrdersAllowed": false,
+    "dataApproval": {
+      "symbol": "BTC/USD",
+      "approved": true,
+      "asOf": "2026-09-12T08:00:00Z",
+      "codes": [],
+      "tickAgeMs": 500,
+      "lake": {
+        "first": "2026-09-11T20:00:00Z",
+        "last": "2026-09-12T07:59:00Z",
+        "effectiveRows": 720,
+        "density": 1.0,
+        "broker": "kraken"
+      }
+    },
+    "regime": "MOMENTUM_TREND",
+    "portfolio": {
+      "initialPaperBalanceUsd": 10000.0,
+      "equityUsd": 10200.0,
+      "availableCashUsd": 10200.0,
+      "realizedDailyPnlUsd": 200.0,
+      "unrealizedDailyPnlUsd": 0.0,
+      "symbolGrossExposureUsd": 0.0,
+      "totalGrossExposureUsd": 0.0,
+      "openPosition": null
+    },
+    "orderBook": {
+      "bestBid": 88495.0,
+      "bestAsk": 88505.0,
+      "spreadBps": 1.13
+    },
+    "lastModuleExecutionBar": 100,
+    "currentBarIndex": 110,
+    "cooldownBarsRequired": 1
+  },
+  "expected": {
+    "allowOpen": false,
+    "allowReduce": true,
+    "sizeOut": 0.0,
+    "failedGateId": "R8_LIVE_GATE"
+  }
+}

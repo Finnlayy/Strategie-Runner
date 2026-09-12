@@ -1,0 +1,61 @@
+{
+  "description": "Fixture testing Screener module selection in MEAN_REVERTING regime with two candidate modules",
+  "symbol": "BTC/USD",
+  "dataApproval": {
+    "symbol": "BTC/USD",
+    "approved": true,
+    "asOf": "2026-09-12T08:00:00Z",
+    "codes": [],
+    "tickAgeMs": 800,
+    "lake": {
+      "first": "2026-09-11T20:00:00Z",
+      "last": "2026-09-12T07:59:00Z",
+      "effectiveRows": 720,
+      "density": 1.0,
+      "broker": "kraken"
+    }
+  },
+  "physics": {
+    "symbol": "BTC/USD",
+    "regime": "MEAN_REVERTING",
+    "zScore": -2.1,
+    "rsi14": 22.0,
+    "emaFast": 88200.0,
+    "emaSlow": 88350.0,
+    "atrBps": 45.0,
+    "breakoutUpper": 88900.0,
+    "breakoutLower": 88000.0,
+    "currentPrice": 88100.0
+  },
+  "scorecard": {
+    "asOf": "2026-09-12T00:00:00Z",
+    "minSamples": 30,
+    "rows": [
+      {
+        "moduleId": "mean_reversion_rsi",
+        "regime": "MEAN_REVERTING",
+        "n": 48,
+        "icEwma": 0.25,
+        "weight": 1.25,
+        "vetoRate": 0.05,
+        "expectancyPaper": 12.5,
+        "proxyShare": 0.1
+      },
+      {
+        "moduleId": "momentum_breakout",
+        "regime": "MEAN_REVERTING",
+        "n": 35,
+        "icEwma": 0.10,
+        "weight": 1.10,
+        "vetoRate": 0.40,
+        "expectancyPaper": -2.1,
+        "proxyShare": 0.2
+      }
+    ]
+  },
+  "expected": {
+    "selectedModuleId": "mean_reversion_rsi",
+    "proposedSide": "buy",
+    "scoreGreaterThan": 0.5
+  }
+}
