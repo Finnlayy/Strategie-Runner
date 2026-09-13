@@ -1,0 +1,9 @@
+# Python runtime dependencies for the quantitative engine and Python MCP server.
+# The MCP integration uses the official Python SDK: https://github.com/modelcontextprotocol/python-sdk
+mcp>=1.30,<3
+numpy
+polars
+pyarrow
+duckdb
+scipy
+pydantic

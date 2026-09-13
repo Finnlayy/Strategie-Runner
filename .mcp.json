@@ -7,6 +7,30 @@
         "-y",
         "@pionex/pionex-trade-mcp"
       ]
+    },
+    "strategie-runner-ts": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "tsx",
+        "server/mcp/server.ts"
+      ],
+      "env": {
+        "STRATEGIE_RUNNER_URL": "http://localhost:3000",
+        "MCP_ENABLE_LIVE_TRADING": "false"
+      }
+    },
+    "strategie-runner-python": {
+      "type": "stdio",
+      "command": "python3",
+      "args": [
+        "-m",
+        "app.mcp_server"
+      ],
+      "env": {
+        "QUANT_BACKEND": "sigma",
+        "AI_LIVE_ORDERS": "false"
+      }
     }
   }
 }

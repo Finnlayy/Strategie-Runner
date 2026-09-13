@@ -5,18 +5,23 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "prebuild": "python3 -m pip install numpy polars pyarrow duckdb scipy pydantic || true",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "prebuild": "python3 -m pip install -r requirements.txt || true",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs && esbuild server/mcp/server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/mcp-server.cjs",
     "start": "node dist/server.cjs",
+    "mcp:ts": "tsx server/mcp/server.ts",
+    "mcp:ts:built": "node dist/mcp-server.cjs",
+    "mcp:python": "python3 -m app.mcp_server",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test:grok": "tsx scripts/grok-selftest.ts",
+    "test:mcp": "tsx scripts/mcp-smoke-test.ts",
     "test:quant": "python3 -m unittest discover -s tests -p 'test_*.py'",
     "test:orchestrator": "python3 tests/test_alpha_sigma_orchestrator.py",
-    "test:all": "npm run lint && npm run test:grok && npm run test:quant && npm run test:orchestrator"
+    "test:all": "npm run lint && npm run test:grok && npm run test:mcp && npm run test:quant && npm run test:orchestrator"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",
@@ -33,7 +38,8 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
