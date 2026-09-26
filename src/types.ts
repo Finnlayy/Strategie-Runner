@@ -17,6 +17,12 @@ export interface TradingStrategy {
   archivedAt?: string;
   evolutionGeneration?: number;
   evolutionFitness?: number;
+  modelSource?: 'google_drive' | 'local' | 'synthesized';
+  onnxFileId?: string;
+  onnxFileName?: string;
+  onnxFileChecksum?: string;
+  onnxModelType?: string;
+  stateVectorDim?: number;
 }
 
 /**
@@ -70,6 +76,70 @@ export interface TradeOrder {
   status: 'filled' | 'pending';
   executionMode?: 'paper' | 'live';
   pnl?: number;
+  onnxAction?: 'BUY' | 'HOLD' | 'SELL';
+  onnxConfidence?: number;
+  onnxLatencyMs?: number;
+  onnxModelName?: string;
+  onnxValueEstimate?: number;
+}
+
+export interface OnnxLearningStep {
+  step: number;
+  timestamp: string;
+  transitionsProcessed: number;
+  meanReward: number;
+  policyLoss: number;
+  valueLoss: number;
+  entropy: number;
+  learningRate: number;
+  weightsHash: string;
+}
+
+export interface OnnxExperienceTransition {
+  id: string;
+  timestamp: string;
+  strategyId: string;
+  state: number[];
+  action: number;
+  actionName: "BUY" | "HOLD" | "SELL";
+  reward: number;
+  nextState: number[];
+  done: boolean;
+  valueEstimate: number;
+  confidence: number;
+}
+
+export interface OnnxModelMetadata {
+  id: string;
+  fileName: string;
+  filePath: string;
+  modelType: "ppo" | "dqn" | "lstm" | "actor_critic" | "custom";
+  fileSizeBytes: number;
+  checksum: string;
+  producer: string;
+  irVersion: number;
+  opset: number;
+  inputs: Array<{ name: string; shape: any[]; type: number }>;
+  outputs: Array<{ name: string; shape: any[]; type: number }>;
+  totalParameters: number;
+  totalInferences: number;
+  avgLatencyMs: number;
+  lastInferenceAt?: string;
+  experienceCount: number;
+  learningHistory: OnnxLearningStep[];
+}
+
+export interface OnnxInferenceResult {
+  success: boolean;
+  action: "BUY" | "HOLD" | "SELL";
+  actionIndex: number;
+  confidence: number;
+  actionProbs: { BUY: number; HOLD: number; SELL: number };
+  valueEstimate: number;
+  latencyMs: number;
+  stateVector: number[];
+  modelPath: string;
+  error?: string;
 }
 
 export interface StrategyPnL {

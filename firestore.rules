@@ -1,33 +1,46 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Strategies collection
-    match /strategies/{strategyId} {
-      allow read, write: if true;
-    }
-
-    // Trades collection
-    match /trades/{tradeId} {
-      allow read, write: if true;
-    }
-
-    // Ledger balances / state
-    match /ledger_state/{docId} {
-      allow read, write: if true;
-    }
-
-    // Backtest results and telemetry
-    match /backtest_runs/{runId} {
-      allow read, write: if true;
-    }
-
-    // Global settings and configs
-    match /settings/{settingId} {
-      allow read, write: if true;
-    }
-
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
+    }
+    
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    function incoming() {
+      return request.resource.data;
+    }
+    
+    function existing() {
+      return resource.data;
+    }
+    
+    function isValidTransfer(data) {
+      return data.keys().hasAll(['amount', 'asset', 'from', 'to', 'environment', 'timestamp']) &&
+             data.keys().size() == 6 &&
+             data.amount is number &&
+             data.asset is string && data.asset.size() <= 10 &&
+             data.from is string && data.from.size() <= 10 &&
+             data.to is string && data.to.size() <= 10 &&
+             data.environment is string && data.environment.size() <= 10 &&
+             data.timestamp == request.time;
+    }
+
+    match /usd_vault/{document} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /users/{userId}/transfers/{transferId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(transferId) && isValidTransfer(incoming());
+      allow update, delete: if false; // Transfers are immutable logs
     }
   }
 }

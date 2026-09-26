@@ -370,9 +370,39 @@ export default function CalendarHeatmap({
   const currentMonthName = MONTHS_LIST.find(m => m.index === selectedMonth)?.full || "August";
 
   const firstDayOfMonthOffset = useMemo(() => {
-    if (!heatmapData || !heatmapData.days || heatmapData.days.length === 0) return 0;
-    return heatmapData.days[0].dayOfWeek;
-  }, [heatmapData]);
+    return new Date(selectedYear, selectedMonth - 1, 1).getDay();
+  }, [selectedYear, selectedMonth]);
+
+  const paddedDays = useMemo(() => {
+    const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+    const days: DailyPnLDay[] = [];
+    for (let dNum = 1; dNum <= daysInMonth; dNum++) {
+      const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(dNum).padStart(2, '0')}`;
+      const existingDay = heatmapData?.days?.find(d => d.date === dateStr || d.dayOfMonth === dNum);
+      if (existingDay) {
+        days.push(existingDay);
+      } else {
+        days.push({
+          date: dateStr,
+          formattedDate: `${currentMonthName} ${String(dNum).padStart(2, '0')}, ${selectedYear}`,
+          dayOfWeek: new Date(selectedYear, selectedMonth - 1, dNum).getDay(),
+          dayLabel: WEEKDAYS[new Date(selectedYear, selectedMonth - 1, dNum).getDay()],
+          dayOfMonth: dNum,
+          monthLabel: currentMonthName,
+          pnl: 0,
+          realizedPnL: 0,
+          tradesCount: 0,
+          wins: 0,
+          losses: 0,
+          winRate: 0,
+          volumeUSD: 0,
+          isToday: dateStr === new Date().toISOString().split("T")[0],
+          isFuture: new Date(selectedYear, selectedMonth - 1, dNum).getTime() > new Date().getTime() && dateStr !== new Date().toISOString().split("T")[0]
+        });
+      }
+    }
+    return days;
+  }, [heatmapData, selectedYear, selectedMonth, currentMonthName]);
 
   // Handle Strategy Multi-Select Toggle
   const handleToggleMultiStrategy = (stratId: string) => {
@@ -750,7 +780,7 @@ export default function CalendarHeatmap({
                 ))}
 
                 {/* Actual Days of the Month */}
-                {heatmapData.days.map((day) => {
+                {paddedDays.map((day) => {
                   const isSelected = selectedDay?.date === day.date;
                   const isHovered = hoveredDay?.date === day.date;
                   const cellClasses = getCellStyling(day, isSelected);

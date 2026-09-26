@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { 
   Sparkles, Bot, AlertTriangle, Lightbulb, Check, ChevronRight, 
   RefreshCw, Wrench, BookOpen, Layers, ArrowRight, ShieldAlert,
-  Sliders, FileCode, CheckCircle2, ShieldCheck, Zap
+  Sliders, FileCode, CheckCircle2, ShieldCheck, Zap, BrainCircuit
 } from "lucide-react";
 import { TradingStrategy, AuditReport, TweakedStrategyResult } from "../types";
+import AgenticDataAnalystPanel from "./AgenticDataAnalystPanel";
 
 interface AIReviewerProps {
   currentStrategy?: TradingStrategy | null;
@@ -35,7 +36,7 @@ export default function AIReviewer({
   const [tweakedResult, setTweakedResult] = useState<TweakedStrategyResult | null>(null);
   const [manifestInsights, setManifestInsights] = useState<any>(null);
   
-  const [activeTab, setActiveTab] = useState<'generate' | 'audit' | 'manifest'>('generate');
+  const [activeTab, setActiveTab] = useState<'generate' | 'audit' | 'manifest' | 'analyst'>('generate');
   const [customTweakNote, setCustomTweakNote] = useState("");
   // Live-Status der LLM-Engine (Grok/xAI vs. Gemini) inkl. Kosten- & Cache-Telemetrie
   const [engineInfo, setEngineInfo] = useState<any>(null);
@@ -263,6 +264,16 @@ export default function AIReviewer({
           >
             <BookOpen className="w-3 h-3 text-emerald-400" />
             <span>Manifest Learn</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('analyst')}
+            className={`px-2.5 py-1 text-[11px] font-mono rounded transition-all flex items-center space-x-1 ${
+              activeTab === 'analyst' ? 'bg-indigo-950/80 border border-indigo-700/80 text-indigo-300 font-semibold' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <BrainCircuit className="w-3 h-3 text-indigo-400" />
+            <span>Agent Analyst</span>
           </button>
         </div>
       </div>
@@ -720,6 +731,30 @@ export default function AIReviewer({
                 Click "Refresh Insights" to evaluate all {strategies.length} manifest algorithms with Gemini.
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 4: AGENTIC DATA ANALYST (GEMINI 3.8 FLASH MANAGED AGENT) */}
+        {activeTab === 'analyst' && (
+          <div className="space-y-4">
+            <AgenticDataAnalystPanel
+              currentStrategy={currentStrategy}
+              strategies={strategies}
+              onApplyStrategyParameters={(params) => {
+                if (currentStrategy && onUpdateStrategy) {
+                  onUpdateStrategy({
+                    id: currentStrategy.id,
+                    hardStopPercent: params.hardStopPercent ?? currentStrategy.hardStopPercent,
+                    parameters: {
+                      ...currentStrategy.parameters,
+                      ...params.parameters
+                    }
+                  });
+                  setApplySuccessMsg("✅ Applied analyst boundaries to " + currentStrategy.name);
+                  setTimeout(() => setApplySuccessMsg(null), 3500);
+                }
+              }}
+            />
           </div>
         )}
       </div>

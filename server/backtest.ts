@@ -1,4 +1,5 @@
 import { fetchLiveKrakenOHLC, KrakenCandle, resolveKrakenPair } from "./kraken";
+import vm from "vm";
 
 export interface BacktestParams {
   strategyId: string;
@@ -290,63 +291,42 @@ export async function runBacktestSimulation(
 
     // If no emergency stop, evaluate Strategy Signals
     if (!action && i >= 15) {
-      const codeLower = (code || "").toLowerCase();
-      const nameLower = strategyName.toLowerCase();
-
       let signal: 'buy' | 'sell' | null = null;
+      let requestedAmount = Number(parameters.tradeAmount || 0.05);
 
-      // Evaluation based on strategy script or archetype
-      if (codeLower.includes("macd") || nameLower.includes("macd") || strategyId.includes("macd")) {
-        const curMacd = macdLine[i];
-        const prevMacd = macdLine[i - 1];
-        const curSig = signalLine[i];
-        const prevSig = signalLine[i - 1];
-
-        if (curMacd > curSig && prevMacd <= prevSig) {
-          signal = 'buy';
-        } else if (curMacd < curSig && prevMacd >= prevSig) {
-          signal = 'sell';
-        }
-      } else if (codeLower.includes("rsi") || nameLower.includes("rsi") || strategyId.includes("rsi")) {
-        const curRsi = rsi[i];
-        const prevRsi = rsi[i - 1];
-        const oversold = Number(parameters.oversold) || 30;
-        const overbought = Number(parameters.overbought) || 70;
-
-        if (curRsi < oversold || (prevRsi < oversold && curRsi >= oversold)) {
-          signal = 'buy';
-        } else if (curRsi > overbought || (prevRsi > overbought && curRsi <= overbought)) {
-          signal = 'sell';
-        }
-      } else if (codeLower.includes("grid") || nameLower.includes("grid") || strategyId.includes("grid")) {
-        const levels = Number(parameters.gridLevels) || 4;
-        const spacing = (Number(parameters.gridSpacingPercent) || 1.5) / 100;
-        const baseline = smaFast[i] || currentPrice;
-        
-        if (currentPrice < baseline * (1 - spacing)) {
-          signal = 'buy';
-        } else if (currentPrice > baseline * (1 + spacing)) {
-          signal = 'sell';
-        }
-      } else if (codeLower.includes("breakout") || nameLower.includes("breakout")) {
-        const threshold = (Number(parameters.threshold) || 1.0) / 100;
-        if (currentPrice > smaFast[i] * (1 + threshold) && smaFast[i] > smaSlow[i]) {
-          signal = 'buy';
-        } else if (currentPrice < smaFast[i] * (1 - threshold)) {
-          signal = 'sell';
-        }
-      } else {
-        // Generic Adaptive Momentum & Trend Cross
-        const f = smaFast[i];
-        const s = smaSlow[i];
-        const pf = smaFast[i - 1];
-        const ps = smaSlow[i - 1];
-
-        if (f > s && pf <= ps) {
-          signal = 'buy';
-        } else if (f < s && pf >= ps) {
-          signal = 'sell';
-        }
+      try {
+        const pricesSlice = prices.slice(0, i + 1);
+        // We use the imported vm module
+        const vmContext = vm.createContext({
+          currentPrice: currentPrice,
+          prices: pricesSlice,
+          parameters: parameters || {},
+          tvSignals: null,
+          executeOrder: (type: 'buy' | 'sell', rawAmount?: number) => {
+            signal = type;
+            if (rawAmount !== undefined) requestedAmount = rawAmount;
+          },
+          console: { log: () => {} },
+          Math, Date, Number, String,
+          getRollingAverage: (arr: number[], periods: number) => {
+            if (!arr || arr.length < periods) return arr[arr.length - 1] || 0;
+            const slice = arr.slice(-periods);
+            return slice.reduce((a, b) => a + b, 0) / periods;
+          },
+          calculateEMA: (arr: number[], periods: number) => {
+            if (!arr || arr.length < periods) return arr[arr.length - 1] || 0;
+            let ema = arr.slice(0, periods).reduce((a, b) => a + b, 0) / periods;
+            const multiplier = 2 / (periods + 1);
+            for (let j = periods; j < arr.length; j++) {
+              ema = (arr[j] - ema) * multiplier + ema;
+            }
+            return ema;
+          }
+        });
+        const script = new vm.Script(code || "");
+        script.runInContext(vmContext, { timeout: 100 });
+      } catch (e) {
+        // Silently ignore VM execution errors in backtest
       }
 
       if (signal === 'buy' && cash > 50) {

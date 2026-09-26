@@ -7,6 +7,22 @@ export default defineConfig(() => {
   return {
     build: {
       outDir: 'dist',
+      sourcemap: true,
+      rollupOptions: {
+        output: {
+          entryFileNames: 'assets/js/[name]-[hash].js',
+          chunkFileNames: 'assets/js/[name]-[hash].js',
+          assetFileNames: (assetInfo) => {
+            if (assetInfo.name && assetInfo.name.endsWith('.css')) {
+              return 'assets/css/[name]-[hash][extname]';
+            }
+            if (assetInfo.name && assetInfo.name.endsWith('.js')) {
+              return 'assets/js/[name]-[hash][extname]';
+            }
+            return 'assets/[name]-[hash][extname]';
+          },
+        },
+      },
     },
     plugins: [react(), tailwindcss()],
     resolve: {

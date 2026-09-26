@@ -1,0 +1,24 @@
+{
+  "entities": {
+    "Transfer": {
+      "title": "Transfer",
+      "description": "A record of an asset transfer between user wallets",
+      "type": "object",
+      "properties": {
+        "amount": { "type": "number" },
+        "asset": { "type": "string", "maxLength": 10 },
+        "from": { "type": "string", "enum": ["spot", "futures"] },
+        "to": { "type": "string", "enum": ["spot", "futures"] },
+        "environment": { "type": "string", "enum": ["live", "paper"] },
+        "timestamp": { "type": "object", "description": "Firestore server timestamp" }
+      },
+      "required": ["amount", "asset", "from", "to", "environment", "timestamp"]
+    }
+  },
+  "firestore": {
+    "users/{userId}/transfers/{transferId}": {
+      "schema": { "$ref": "#/entities/Transfer" },
+      "description": "User transfers between sub-accounts"
+    }
+  }
+}

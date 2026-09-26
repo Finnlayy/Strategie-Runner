@@ -6,7 +6,7 @@ import path from "path";
  */
 function runPythonCommand(cmd: string): Promise<any> {
   return new Promise((resolve, reject) => {
-    exec(cmd, { cwd: process.cwd(), maxBuffer: 15 * 1024 * 1024, timeout: 8000 }, (error, stdout, stderr) => {
+    exec(cmd, { cwd: process.cwd(), maxBuffer: 15 * 1024 * 1024, timeout: 60000 }, (error, stdout, stderr) => {
       if (error) {
         console.error(`[Python DataLayer Error] ${error.message}\nStderr: ${stderr}`);
         return reject(new Error(stderr || error.message));

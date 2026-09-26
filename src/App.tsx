@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Terminal as TerminalIcon, Cpu, ShieldAlert, BarChart2, Zap, 
@@ -6,12 +6,12 @@ import {
   Code2, Sliders, ArrowRight, Radio, Activity, ExternalLink, ShieldCheck,
   TrendingUp, TrendingDown, DollarSign, BarChart3, History, Dna, Layers,
   Wallet, FileSpreadsheet, Database, Archive, ArchiveRestore, GitCommit, Calculator,
-  Coins, ArrowUpRight
+  Coins, ArrowUpRight, FolderGit2, BrainCircuit, Brain
 } from "lucide-react";
 
 import { TradingStrategy, MarketTicker, ExecutionLog, TradeOrder, RunnerMetrics, StrategyPnL, QueueMatrixData, formatTimeframe } from "./types";
 import { getLedgerCurrency, getCurrencySymbol } from "./lib/symbolNormalizer";
-import { safeFetchJson, DashboardInitResponse } from "./lib/api";
+import { safeFetchJson, safeMutation, DashboardInitResponse } from "./lib/api";
 import MetricsPanel from "./components/MetricsPanel";
 import TerminalPanel from "./components/TerminalPanel";
 import StrategyEditor from "./components/StrategyEditor";
@@ -22,15 +22,20 @@ import { GeneticOptimizerPanel } from "./components/GeneticOptimizerPanel";
 import QueueMatrixPanel from "./components/QueueMatrixPanel";
 import KrakenLedgersPanel from "./components/KrakenLedgersPanel";
 import { DataLakePanel } from "./components/DataLakePanel";
+import { USDVaultPanel } from "./components/USDVaultPanel";
+import { StrategyListItem } from "./components/StrategyListItem";
+import { GoogleDriveOnnxModal } from "./components/GoogleDriveOnnxModal";
+import AgenticDataAnalystPanel from "./components/AgenticDataAnalystPanel";
+import { OnnxNeuralStudio } from "./components/OnnxNeuralStudio";
 import { SystemHealthPanel } from "./components/quant/SystemHealthPanel";
 import { QuantitativeRegimePanel } from "./components/quant/QuantitativeRegimePanel";
 import { ExecutionRiskPanel } from "./components/quant/ExecutionRiskPanel";
-import { AlphaSigmaOrchestratorPanel } from "./components/quant/AlphaSigmaOrchestratorPanel";
-import { AcademyRegistryPanel } from "./components/quant/AcademyRegistryPanel";
+import { WalletsPanel } from "./components/quant/WalletsPanel";
+
 
 export default function App() {
-  // Page Navigation State: 'overview' | 'health' | 'regime' | 'execution' | 'academy' | 'orchestrator' | 'backtesting' | 'genetic' | 'queues' | 'ledgers' | 'datalake'
-  const [activePage, setActivePage] = useState<'overview' | 'health' | 'regime' | 'execution' | 'academy' | 'orchestrator' | 'backtesting' | 'genetic' | 'queues' | 'ledgers' | 'datalake'>('overview');
+  // Page Navigation State
+  const [activePage, setActivePage] = useState<'overview' | 'health' | 'regime' | 'execution' | 'wallets' | 'orchestrator' | 'backtesting' | 'genetic' | 'queues' | 'ledgers' | 'datalake' | 'analyst' | 'onnx'>('overview');
 
   const [strategies, setStrategies] = useState<TradingStrategy[]>([]);
   const [selectedStrategy, setSelectedStrategy] = useState<TradingStrategy | null>(null);
@@ -54,10 +59,26 @@ export default function App() {
   // Strategy Manifest List Filter in Orchestrator: 'active' | 'archived'
   const [manifestFilter, setManifestFilter] = useState<'active' | 'archived'>('active');
   const [showQuickStatBaselineTooltip, setShowQuickStatBaselineTooltip] = useState(false);
+  const [showDriveOnnxModal, setShowDriveOnnxModal] = useState(false);
 
   // Active pair and ledger currency resolution
   const activePair = selectedStrategy?.assetPair || (strategies.length > 0 ? strategies[0].assetPair : "BTC/USD");
   const activeCurrency = useMemo(() => getLedgerCurrency(activePair), [activePair]);
+
+  // Memoized strategy counts & filtered items for Orchestrator to prevent re-renders on background ticks
+  const activeStrategiesCount = useMemo(() => {
+    return strategies.filter(s => s.status !== 'archived').length;
+  }, [strategies]);
+
+  const archivedStrategiesCount = useMemo(() => {
+    return strategies.filter(s => s.status === 'archived').length;
+  }, [strategies]);
+
+  const manifestStrategies = useMemo(() => {
+    return strategies.filter(strat => 
+      manifestFilter === 'archived' ? strat.status === 'archived' : strat.status !== 'archived'
+    );
+  }, [strategies, manifestFilter]);
 
   // Fast Non-Blocking Dashboard Initialization & Polling
   useEffect(() => {
@@ -169,7 +190,7 @@ export default function App() {
     }
   };
 
-  const fetchLogsAndMetrics = async () => {
+  const fetchLogsAndMetrics = useCallback(async () => {
     const data = await safeFetchJson<{
       logs: ExecutionLog[];
       metrics: RunnerMetrics;
@@ -181,16 +202,24 @@ export default function App() {
     if (data) {
       setLogs(data.logs || []);
       setMetrics(data.metrics || null);
-      setOrders(data.orders || []);
+      const seenOrderIds = new Set<string>();
+      const dedupedOrders: TradeOrder[] = [];
+      for (const o of (data.orders || [])) {
+        if (o && o.id && !seenOrderIds.has(o.id)) {
+          seenOrderIds.add(o.id);
+          dedupedOrders.push(o);
+        }
+      }
+      setOrders(dedupedOrders);
       setBalances(data.balances || null);
       if (data.strategyPnL) {
         setStrategyPnL(data.strategyPnL);
       }
     }
-  };
+  }, []);
 
   // ACTIONS
-  const handleUpdateStrategy = async (id: string, updates: Partial<TradingStrategy>) => {
+  const handleUpdateStrategy = useCallback(async (id: string, updates: Partial<TradingStrategy>) => {
     try {
       const res = await fetch(`/api/strategies/${id}`, {
         method: "PUT",
@@ -209,15 +238,13 @@ export default function App() {
       }
       const updated = await res.json();
       setStrategies(prev => prev.map(s => s.id === id ? updated : s));
-      if (selectedStrategy?.id === id) {
-        setSelectedStrategy(updated);
-      }
+      setSelectedStrategy(prev => (prev?.id === id ? updated : prev));
     } catch (err) {
       console.error("Error updating strategy:", err);
     }
-  };
+  }, []);
 
-  const handleCreateStrategy = async (strategy: Partial<TradingStrategy>) => {
+  const handleCreateStrategy = useCallback(async (strategy: Partial<TradingStrategy>) => {
     try {
       const res = await fetch("/api/strategies", {
         method: "POST",
@@ -241,9 +268,9 @@ export default function App() {
     } catch (err) {
       console.error("Error creating strategy:", err);
     }
-  };
+  }, [fetchLogsAndMetrics]);
 
-  const handleDeleteStrategy = async (id: string) => {
+  const handleDeleteStrategy = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/strategies/${id}`, { method: "DELETE" });
       if (!res.ok) return;
@@ -253,56 +280,73 @@ export default function App() {
     } catch (err) {
       console.error("Error deleting strategy:", err);
     }
-  };
+  }, [fetchLogsAndMetrics]);
 
-  const handleArchiveStrategy = async (id: string) => {
+  const handleArchiveStrategy = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/strategies/${id}/archive`, { method: "POST" });
       if (!res.ok) return;
       const data = await res.json();
       setStrategies(prev => prev.map(s => s.id === id ? data.strategy : s));
-      if (selectedStrategy?.id === id) {
-        setSelectedStrategy(data.strategy);
-      }
+      setSelectedStrategy(prev => (prev?.id === id ? data.strategy : prev));
       fetchLogsAndMetrics();
     } catch (err) {
       console.error("Error archiving strategy:", err);
     }
-  };
+  }, [fetchLogsAndMetrics]);
 
-  const handleRestoreStrategy = async (id: string) => {
+  const handleRestoreStrategy = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/strategies/${id}/restore`, { method: "POST" });
       if (!res.ok) return;
       const data = await res.json();
       setStrategies(prev => prev.map(s => s.id === id ? data.strategy : s));
-      if (selectedStrategy?.id === id) {
-        setSelectedStrategy(data.strategy);
-      }
+      setSelectedStrategy(prev => (prev?.id === id ? data.strategy : prev));
       fetchLogsAndMetrics();
     } catch (err) {
       console.error("Error restoring strategy:", err);
     }
-  };
+  }, [fetchLogsAndMetrics]);
 
-  const handleToggleRun = async (id: string, action: 'start' | 'stop', mode?: 'paper' | 'live') => {
+  const handleToggleRun = useCallback(async (id: string, action: 'start' | 'stop', mode?: 'paper' | 'live') => {
     try {
-      const res = await fetch("/api/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action, mode })
-      });
-      if (!res.ok) return;
-      const updated = await res.json();
-      setStrategies(prev => prev.map(s => s.id === id ? updated : s));
-      if (selectedStrategy?.id === id) {
-        setSelectedStrategy(updated);
+      const res = await safeMutation<TradingStrategy>("/api/run", "POST", { id, action, mode });
+      if (!res.ok || !res.data) {
+        console.error("Failed to toggle strategy run:", res.error);
+        return;
       }
+      const updated = res.data;
+      setStrategies(prev => prev.map(s => s.id === id ? updated : s));
+      setSelectedStrategy(prev => (prev?.id === id ? updated : prev));
       fetchLogsAndMetrics();
     } catch (err) {
       console.error("Error toggling strategy run:", err);
     }
-  };
+  }, [fetchLogsAndMetrics]);
+
+  // Memoized selection and run callbacks for orchestrator items
+  const handleSelectManifestStrategy = useCallback((strat: TradingStrategy) => {
+    setAiGeneratedToInsert(null);
+    setSelectedStrategy(strat);
+  }, []);
+
+  const handleToggleRunManifest = useCallback((id: string, action: 'start' | 'stop') => {
+    handleToggleRun(id, action);
+  }, [handleToggleRun]);
+
+  // Memoized list items to prevent re-rendering when global metrics/logs poll in background
+  const renderedManifestStrategyList = useMemo(() => {
+    return manifestStrategies.map((strat) => (
+      <StrategyListItem
+        key={strat.id}
+        strategy={strat}
+        isSelected={selectedStrategy?.id === strat.id}
+        onSelect={handleSelectManifestStrategy}
+        onRestore={handleRestoreStrategy}
+        onToggleRun={handleToggleRunManifest}
+      />
+    ));
+  }, [manifestStrategies, selectedStrategy?.id, handleSelectManifestStrategy, handleRestoreStrategy, handleToggleRunManifest]);
 
   const handleSendCommand = async (command: string): Promise<string> => {
     try {
@@ -429,19 +473,16 @@ export default function App() {
             </button>
 
             <button
-              id="nav-tab-academy"
-              onClick={() => setActivePage('academy')}
+              id="nav-tab-wallets"
+              onClick={() => setActivePage('wallets')}
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-mono font-medium transition-all ${
-                activePage === 'academy'
-                  ? 'bg-purple-950/80 text-purple-300 shadow-sm border border-purple-600/70 font-bold'
+                activePage === 'wallets'
+                  ? 'bg-amber-950/80 text-amber-300 shadow-sm border border-amber-600/70 font-bold'
                   : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
               }`}
             >
-              <ShieldAlert className="w-3.5 h-3.5 text-purple-400" />
-              <span>Academy &amp; Drills</span>
-              <span className="bg-purple-900/60 text-purple-300 text-[9px] px-1.5 py-0.2 rounded font-bold uppercase">
-                85/100
-              </span>
+              <Wallet className="w-3.5 h-3.5 text-amber-400" />
+              <span>Budget &amp; Wallets</span>
             </button>
 
             <button
@@ -546,6 +587,51 @@ export default function App() {
                 Parquet &amp; DuckDB
               </span>
             </button>
+
+            <button
+              id="nav-tab-analyst"
+              onClick={() => setActivePage('analyst')}
+              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-md text-xs font-mono font-medium transition-all ${
+                activePage === 'analyst'
+                  ? 'bg-indigo-950/80 text-indigo-300 shadow-sm border border-indigo-700/80 font-bold'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+              }`}
+            >
+              <BrainCircuit className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Data Analyst</span>
+              <span className="bg-indigo-950/90 text-indigo-300 border border-indigo-800/60 text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
+                Gemini 3.8
+              </span>
+            </button>
+
+            <button
+              id="nav-tab-onnx-studio"
+              onClick={() => setActivePage('onnx')}
+              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-md text-xs font-mono font-medium transition-all ${
+                activePage === 'onnx'
+                  ? 'bg-blue-950/80 text-blue-300 shadow-sm border border-blue-700/80 font-bold'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+              }`}
+            >
+              <Brain className="w-3.5 h-3.5 text-blue-400" />
+              <span>ONNX Studio</span>
+              <span className="bg-blue-900/80 text-blue-200 border border-blue-700/60 text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
+                RL Fast-Path
+              </span>
+            </button>
+
+            <button
+              id="nav-tab-drive-onnx"
+              onClick={() => setShowDriveOnnxModal(true)}
+              className="flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-mono font-medium transition-all bg-blue-950/70 hover:bg-blue-900/70 text-blue-300 border border-blue-700/80 shadow-sm"
+              title="Inspect and mount models from your Google Drive onnx folder"
+            >
+              <FolderGit2 className="w-3.5 h-3.5 text-blue-400" />
+              <span>Drive ONNX</span>
+              <span className="bg-blue-900/90 text-blue-200 border border-blue-700/60 text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
+                Drive
+              </span>
+            </button>
           </nav>
         </div>
 
@@ -613,7 +699,7 @@ export default function App() {
                         {/* Dynamic Baseline Tag with Active Ledger Currency */}
                         <div id="portfolio-dynamic-baseline-tag" className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-950/80 text-amber-300 border border-amber-700/60 shadow-xs">
                           <span className="text-amber-500 font-normal">Baseline:</span>
-                          <span className="text-amber-200">{activeCurrency.symbol}{((metrics?.baselineUSD ?? (isPaperTrading ? 190412.50 : (metrics?.portfolioUSD || 0)))).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                          <span className="text-amber-200">{activeCurrency.symbol}{((metrics?.baselineUSD ?? (isPaperTrading ? 100000.00 : (metrics?.portfolioUSD || 0)))).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                           <span className="text-[9px] text-amber-400/80 uppercase">{activeCurrency.quote}</span>
                         </div>
 
@@ -662,7 +748,7 @@ export default function App() {
                                 <div className="flex justify-between items-center">
                                   <span className="text-zinc-400">Baseline Reference ({activeCurrency.quote}):</span>
                                   <span className="font-bold text-amber-300">
-                                    {activeCurrency.symbol}{((metrics?.baselineUSD ?? (isPaperTrading ? 190412.50 : (metrics?.portfolioUSD || 0)))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeCurrency.quote}
+                                    {activeCurrency.symbol}{((metrics?.baselineUSD ?? (isPaperTrading ? 100000.00 : (metrics?.portfolioUSD || 0)))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeCurrency.quote}
                                   </span>
                                 </div>
                                 <div className="flex justify-between items-center">
@@ -727,7 +813,7 @@ export default function App() {
                   <div className="text-[11px] font-mono text-zinc-500 mt-2 flex justify-between">
                     <span>{isPaperTrading ? 'Level 2 Paper Automation' : 'Level 4 Live Capital Execution'}</span>
                     <span className="text-zinc-400 font-medium">
-                      Baseline: <strong className="text-amber-300 font-semibold">{activeCurrency.symbol}{((metrics?.baselineUSD ?? (isPaperTrading ? 190412.50 : (metrics?.portfolioUSD || 0)))).toLocaleString(undefined, { maximumFractionDigits: 0 })} {activeCurrency.quote}</strong>
+                      Baseline: <strong className="text-amber-300 font-semibold">{activeCurrency.symbol}{((metrics?.baselineUSD ?? (isPaperTrading ? 100000.00 : (metrics?.portfolioUSD || 0)))).toLocaleString(undefined, { maximumFractionDigits: 0 })} {activeCurrency.quote}</strong>
                     </span>
                   </div>
                 </div>
@@ -810,6 +896,7 @@ export default function App() {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
                 {/* LEFT COLUMN: Telemetry, 1H P&L Chart & Market Books (7/12) */}
                 <div className="lg:col-span-7 space-y-5">
+                  <USDVaultPanel />
                   {/* Visualizer & Historical P&L Panel */}
                   <MetricsPanel 
                     metrics={metrics} 
@@ -833,6 +920,10 @@ export default function App() {
                     orders={orders}
                     portfolioHistory={portfolioHistory}
                     onResetHistory={handleResetHistory}
+                    strategies={strategies}
+                    selectedStrategy={selectedStrategy}
+                    onSelectStrategy={setSelectedStrategy}
+                    onRefreshOrders={fetchLogsAndMetrics}
                   />
                 </div>
 
@@ -1005,6 +1096,8 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+
             </motion.div>
           ) : activePage === 'health' ? (
             /* ======================================================== */
@@ -1048,25 +1141,24 @@ export default function App() {
             >
               <ExecutionRiskPanel />
             </motion.div>
-          ) : activePage === 'academy' ? (
+          ) : activePage === 'wallets' ? (
             /* ======================================================== */
-            /* PILLAR D: ACADEMY, STRESS DRILLS & REGISTRY (M-04..08,13)*/
+            /* WALLETS & BUDGET PAGE                                    */
             /* ======================================================== */
             <motion.div
-              key="academy-page"
+              key="wallets-page"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
-              className="max-w-7xl mx-auto"
+              className="w-full"
             >
-              <AcademyRegistryPanel />
+              <WalletsPanel />
             </motion.div>
           ) : activePage === 'orchestrator' ? (
             /* ======================================================== */
             /* PAGE 2: STRATEGY ORCHESTRATOR PAGE                       */
             /* ======================================================== */
-            <>
             <motion.div
               key="orchestrator-page"
               initial={{ opacity: 0, y: 8 }}
@@ -1077,6 +1169,16 @@ export default function App() {
             >
               {/* COLUMN 1: STRATEGY MANIFEST & SELECTION (3/12) */}
               <div className="xl:col-span-3 flex flex-col space-y-4">
+                {/* Google Drive ONNX Fast-Path Mount Button */}
+                <button
+                  id="btn-orchestrator-drive-onnx-mount"
+                  onClick={() => setShowDriveOnnxModal(true)}
+                  className="w-full py-2.5 px-3 rounded-lg border bg-blue-950/60 hover:bg-blue-900/60 border-blue-700/80 text-blue-200 text-xs font-mono font-bold flex items-center justify-center space-x-2 shadow-sm transition-all group cursor-pointer"
+                >
+                  <FolderGit2 className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
+                  <span>Mount ONNX from Drive ('onnx' folder)</span>
+                </button>
+
                 {/* Strategy Manifest Selector */}
                 <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 flex flex-col">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-3">
@@ -1095,7 +1197,7 @@ export default function App() {
                             : 'text-zinc-500 hover:text-zinc-300'
                         }`}
                       >
-                        Active ({strategies.filter(s => s.status !== 'archived').length})
+                        Active ({activeStrategiesCount})
                       </button>
                       <button
                         onClick={() => setManifestFilter('archived')}
@@ -1106,129 +1208,15 @@ export default function App() {
                         }`}
                       >
                         <Archive className="w-2.5 h-2.5" />
-                        <span>Archives ({strategies.filter(s => s.status === 'archived').length})</span>
+                        <span>Archives ({archivedStrategiesCount})</span>
                       </button>
                     </div>
                   </div>
 
                   <div className="space-y-2 pr-1 max-h-[460px] overflow-y-auto terminal-scroll">
-                    {strategies
-                      .filter(strat => manifestFilter === 'archived' ? strat.status === 'archived' : strat.status !== 'archived')
-                      .map((strat) => {
-                      const isSelected = selectedStrategy?.id === strat.id;
-                      const isActive = strat.status === 'active';
-                      const isArchived = strat.status === 'archived';
+                    {renderedManifestStrategyList}
 
-                      return (
-                        <motion.div
-                          key={strat.id}
-                          onClick={() => {
-                            setAiGeneratedToInsert(null);
-                            setSelectedStrategy(strat);
-                          }}
-                          className={`p-3 rounded-lg border transition-all cursor-pointer select-none relative ${
-                            isSelected 
-                              ? isArchived
-                                ? 'bg-amber-950/30 border-amber-500/60 text-white shadow-md'
-                                : 'bg-zinc-800/90 border-emerald-500/60 text-white shadow-md' 
-                              : isArchived
-                                ? 'bg-zinc-950/40 hover:bg-zinc-950 border-zinc-850 text-zinc-400'
-                                : 'bg-zinc-950/50 hover:bg-zinc-950 border-zinc-800 text-zinc-300'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="space-y-1 flex-1 min-w-0">
-                              <div className="flex items-center space-x-1.5 flex-wrap">
-                                <h4 className="text-xs font-mono font-bold leading-none truncate max-w-[180px]">
-                                  {strat.name}
-                                </h4>
-                                <span className="bg-purple-950/70 border border-purple-800/50 text-purple-300 px-1 py-0.2 rounded text-[9px] font-mono font-bold shrink-0">
-                                  v{strat.version || 1}
-                                </span>
-                                {isArchived && (
-                                  <span className="bg-amber-950/70 border border-amber-800/50 text-amber-300 px-1 py-0.2 rounded text-[9px] font-mono shrink-0 flex items-center space-x-0.5">
-                                    <Archive className="w-2.5 h-2.5" />
-                                    <span>ARCHIVE</span>
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="flex items-center space-x-2 text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
-                                <span>{strat.assetPair}</span>
-                                <span>•</span>
-                                <span>{formatTimeframe(strat.interval)}</span>
-                                {strat.hardStopEnabled !== false && (
-                                  <>
-                                    <span>•</span>
-                                    <span className="text-rose-400 font-semibold lowercase">
-                                      stop: -{strat.hardStopPercent ?? 5.0}%
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-
-                              {strat.seededFromName && (
-                                <div className="text-[10px] font-mono text-purple-400 flex items-center space-x-1 truncate pt-0.5" title={`Seeded from: ${strat.seededFromName}`}>
-                                  <Dna className="w-2.5 h-2.5 shrink-0" />
-                                  <span className="truncate">Seed: {strat.seededFromName}</span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Status indicator badge */}
-                            <span className={`w-2 h-2 rounded-full shrink-0 mt-1 ${
-                              isActive 
-                                ? 'bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.5)]' 
-                                : isArchived
-                                  ? 'bg-amber-600'
-                                  : 'bg-zinc-700'
-                            }`} />
-                          </div>
-
-                          <p className="text-[11px] text-zinc-400 mt-2 line-clamp-2 leading-relaxed">
-                            {strat.description}
-                          </p>
-
-                          {/* Quick control overlay */}
-                          {isSelected && (
-                            <div className="mt-3 pt-2.5 border-t border-zinc-700/60 flex justify-between items-center text-[10px] font-mono">
-                              <span className="text-zinc-500 uppercase">
-                                {isArchived ? 'Archive State' : 'Worker Engine'}
-                              </span>
-                              {isArchived ? (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRestoreStrategy(strat.id);
-                                  }}
-                                  className="px-2 py-0.5 rounded border bg-purple-950/60 border-purple-800/80 hover:bg-purple-900/60 text-purple-300 flex items-center space-x-1"
-                                >
-                                  <ArchiveRestore className="w-2.5 h-2.5" />
-                                  <span>RESTORE</span>
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleToggleRun(strat.id, isActive ? 'stop' : 'start');
-                                  }}
-                                  className={`px-2 py-0.5 rounded border flex items-center space-x-1 ${
-                                    isActive
-                                      ? 'bg-rose-950/40 border-rose-900/40 hover:bg-rose-900/40 text-rose-400'
-                                      : 'bg-emerald-950/40 border-emerald-900/40 hover:bg-emerald-900/40 text-emerald-400'
-                                  }`}
-                                >
-                                  {isActive ? <Square className="w-2.5 h-2.5 fill-rose-400" /> : <Play className="w-2.5 h-2.5 fill-emerald-400" />}
-                                  <span>{isActive ? 'SHUTDOWN' : 'DEPLOY'}</span>
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </motion.div>
-                      );
-                    })}
-
-                    {strategies.filter(strat => manifestFilter === 'archived' ? strat.status === 'archived' : strat.status !== 'archived').length === 0 && (
+                    {manifestStrategies.length === 0 && (
                       <div className="p-4 rounded border border-zinc-800/60 bg-zinc-950/40 text-center text-xs font-mono text-zinc-500">
                         {manifestFilter === 'archived' 
                           ? 'No archived strategies. When evolutionary optimization seeds new versions, ancestor strategies will be automatically archived here.'
@@ -1327,12 +1315,6 @@ export default function App() {
                 </div>
               </div>
             </motion.div>
-
-            {/* ======================================================== */}
-            {/* ALPHA/SIGMA ORCHESTRATOR (Modul 19): zwei Kammern, ein Urteil */}
-            {/* ======================================================== */}
-            <AlphaSigmaOrchestratorPanel />
-            </>
           ) : activePage === 'backtesting' ? (
             /* ======================================================== */
             /* PAGE 3: STRATEGY BACKTESTING PAGE                        */
@@ -1425,7 +1407,7 @@ export default function App() {
                 onRefreshTrigger={fetchKrakenStatus}
               />
             </motion.div>
-          ) : (
+          ) : activePage === 'datalake' ? (
             /* ======================================================== */
             /* PAGE 7: ENTERPRISE OHLCV DATA LAKE & DUCKDB COMPUTE      */
             /* ======================================================== */
@@ -1444,9 +1426,66 @@ export default function App() {
                 }}
               />
             </motion.div>
-          )}
+          ) : activePage === 'analyst' ? (
+            /* ======================================================== */
+            /* PAGE 8: AGENTIC DATA ANALYST (GEMINI 3.8 FLASH MANAGED)  */
+            /* ======================================================== */
+            <motion.div
+              key="agentic-analyst-page"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+            >
+              <AgenticDataAnalystPanel
+                currentStrategy={selectedStrategy}
+                strategies={strategies}
+                onApplyStrategyParameters={(params) => {
+                  if (selectedStrategy) {
+                    handleUpdateStrategy(selectedStrategy.id, {
+                      hardStopPercent: params.hardStopPercent ?? selectedStrategy.hardStopPercent,
+                      parameters: {
+                        ...selectedStrategy.parameters,
+                        ...params.parameters,
+                      }
+                    });
+                  }
+                }}
+              />
+            </motion.div>
+          ) : activePage === 'onnx' ? (
+            /* ======================================================== */
+            /* PAGE 9: ONNX NEURAL FAST-PATH & ONLINE RL LEARNING       */
+            /* ======================================================== */
+            <motion.div
+              key="onnx-studio-page"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+            >
+              <OnnxNeuralStudio
+                tickers={tickers.reduce((acc, t) => {
+                  acc[t.pair] = t;
+                  return acc;
+                }, {} as Record<string, MarketTicker>)}
+                selectedPair={activePair}
+              />
+            </motion.div>
+          ) : null}
         </AnimatePresence>
       </main>
+
+      {/* Google Drive ONNX Model Browser & Lifecycle SOP Mounting Modal */}
+      <GoogleDriveOnnxModal
+        isOpen={showDriveOnnxModal}
+        onClose={() => setShowDriveOnnxModal(false)}
+        onMountStrategy={async (strategyPayload) => {
+          await handleCreateStrategy(strategyPayload as any);
+          setActivePage("orchestrator");
+        }}
+        assetPairs={["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD"]}
+      />
     </div>
   );
 }

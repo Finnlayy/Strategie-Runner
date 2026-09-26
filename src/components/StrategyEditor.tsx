@@ -79,6 +79,11 @@ export default function StrategyEditor({
   const [pendingQueueTarget, setPendingQueueTarget] = useState<'paper' | 'live'>('paper');
   const [isSwitchingQueue, setIsSwitchingQueue] = useState(false);
 
+  // TVRemix State
+  const [isTvRemixOpen, setIsTvRemixOpen] = useState(false);
+  const [isFetchingTv, setIsFetchingTv] = useState(false);
+  const [tvResult, setTvResult] = useState<any>(null);
+
   const handleRequestQueueChange = (target: 'paper' | 'live') => {
     if (target === executionMode) return;
     if (isCreating || !selectedStrategy) {
@@ -180,6 +185,31 @@ export default function StrategyEditor({
   const handleOpenManifest = () => {
     setIsManifestOpen(true);
     fetchManifest();
+  };
+
+  const handleFetchTvRemix = async () => {
+    setIsFetchingTv(true);
+    setTvResult(null);
+    try {
+      const symbol = assetPair.replace("/", "");
+      const tvSymbol = `KRAKEN:${symbol}`;
+      
+      const res = await fetch("/api/tvremix/call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tool: "get_technicals", args: { symbol: tvSymbol, interval: "1h" } })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTvResult(data.result);
+      } else {
+        setTvResult({ error: data.error || "Failed to fetch from TVRemix" });
+      }
+    } catch (err: any) {
+      setTvResult({ error: err.message });
+    } finally {
+      setIsFetchingTv(false);
+    }
   };
 
   const handleExportManifest = () => {
@@ -442,6 +472,15 @@ if (diff > parameters.threshold) {
 
         <div className="flex items-center space-x-2">
           <button
+            onClick={() => { setIsTvRemixOpen(true); handleFetchTvRemix(); }}
+            className="bg-amber-950/40 hover:bg-amber-900/50 border border-amber-800/60 hover:border-amber-700 text-amber-400 px-2.5 py-1.5 rounded text-xs font-mono transition-all flex items-center space-x-1.5"
+            title="Fetch TradingView Remix signals"
+          >
+            <Zap className="w-3.5 h-3.5 text-amber-400" />
+            <span>TVRemix Feed</span>
+          </button>
+
+          <button
             onClick={handleOpenManifest}
             className="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 hover:text-white px-2.5 py-1.5 rounded text-xs font-mono transition-all flex items-center space-x-1.5"
           >
@@ -458,7 +497,18 @@ if (diff > parameters.threshold) {
                 setAssetPair("BTC/USD");
                 setIntervalVal(10);
                 setParamsStr("{\n  \"threshold\": 1.0\n}");
-                setCode(`// Write custom trading logic using standard hooks\n// available parameters:\n// 'currentPrice', 'prices', 'parameters', 'executeOrder(type, amount)'\n\nif (currentPrice < parameters.threshold) {\n  executeOrder('buy', 0.1);\n}`);
+                setCode(`// Write custom trading logic using standard javascript
+// Available properties:
+// 'currentPrice', 'prices' (array), 'parameters' (object), 'tvSignals' (object)
+// Available functions: 
+// 'executeOrder(type, amount)', 'getRollingAverage(arr, n)', 'calculateEMA(arr, n)', 'console.log(msg)'
+
+if (tvSignals && tvSignals.RECOMMENDATION === "STRONG_BUY") {
+  // We have a TVRemix signal!
+  executeOrder('buy', 0.1);
+} else if (currentPrice < parameters.threshold) {
+  executeOrder('buy', 0.1);
+}`);
               }}
               className="bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-850 hover:border-emerald-700 text-emerald-400 px-3 py-1.5 rounded text-xs font-mono transition-all flex items-center space-x-1"
             >
@@ -475,6 +525,58 @@ if (diff > parameters.threshold) {
           )}
         </div>
       </div>
+
+      {/* TVREMIX SIGNAL INSPECTOR MODAL */}
+      {isTvRemixOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsTvRemixOpen(false)} />
+          <div className="relative bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-950/50">
+              <div className="flex items-center space-x-2">
+                <Zap className="w-4 h-4 text-amber-400" />
+                <h3 className="font-bold text-amber-400 uppercase tracking-wider text-sm">
+                  TradingView Remix Integration
+                </h3>
+              </div>
+              <button 
+                onClick={() => setIsTvRemixOpen(false)}
+                className="text-zinc-500 hover:text-zinc-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm text-zinc-400">
+                  Live technical indicators and screener data for <span className="text-zinc-200 font-bold">{assetPair}</span> from TVRemix.
+                </p>
+                <button
+                  onClick={handleFetchTvRemix}
+                  disabled={isFetchingTv}
+                  className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white px-4 py-2 rounded text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isFetchingTv ? "animate-spin" : ""}`} />
+                  Refresh
+                </button>
+              </div>
+
+              {tvResult ? (
+                <div className="bg-black/50 border border-zinc-800 rounded-lg p-4">
+                  <pre className="text-xs font-mono text-zinc-300 whitespace-pre-wrap">
+                    {typeof tvResult === 'string' ? tvResult : JSON.stringify(tvResult, null, 2)}
+                  </pre>
+                </div>
+              ) : isFetchingTv ? (
+                <div className="flex items-center justify-center py-12 text-zinc-500">
+                  <RefreshCw className="w-6 h-6 animate-spin" />
+                  <span className="ml-3 font-mono text-sm">Fetching technicals...</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MANIFEST INSPECTOR & MANAGEMENT MODAL */}
       {isManifestOpen && (

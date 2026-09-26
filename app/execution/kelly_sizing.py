@@ -115,5 +115,24 @@ class KellySizingEngine:
         }
 
 
+
+    def calculate_allocation(
+        self,
+        win_rate: float,
+        win_loss_ratio: float,
+        portfolio_equity: float,
+        target_volatility: float,
+        current_asset_volatility: float
+    ) -> Dict[str, Any]:
+        """Unified method for server API compatibility."""
+        return self.compute_position_size(
+            capital_usd=portfolio_equity,
+            current_price=100.0, # dummy price
+            atr=5.0, # dummy atr
+            win_rate=win_rate,
+            payoff_ratio=win_loss_ratio,
+            asset_annual_vol=current_asset_volatility
+        )
+
 # Global Singleton
 kelly_sizer = KellySizingEngine()

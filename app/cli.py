@@ -71,6 +71,9 @@ def generate_synthetic_ohlcv(symbol: str = "BTC/USD", days: int = 14, interval_m
         trades = int(max(1, random.gauss(45, 20)))
         vwap = (open_p + high_p + low_p + close_p) / 4.0
 
+        if len(candles) % 5000 == 0:
+            system_watchdog.beat()
+
         candles.append({
             "timestamp": current_time.isoformat(),
             "symbol": symbol,

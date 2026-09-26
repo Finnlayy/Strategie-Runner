@@ -13,8 +13,9 @@ import { RunnerMetrics, StrategyPnL, TradingStrategy, QueueMatrixData, StrategyQ
 import { getLedgerCurrency } from "../lib/symbolNormalizer";
 import StrategyMatrixModal from "./StrategyMatrixModal";
 import CalendarHeatmap from "./CalendarHeatmap";
+import { FramerMotionTrendline } from "./FramerMotionTrendline";
 
-interface PnLHistoryPoint {
+export interface PnLHistoryPoint {
   time: string;
   timestamp?: string;
   pnl: number;
@@ -58,7 +59,7 @@ export default function MetricsPanel({
     profitLossPercentage: 0,
     balanceUSD: 50000,
     balanceBTC: 1.5,
-    portfolioUSD: 146375
+    portfolioUSD: 100000
   } as any;
 
   const isProfit = defaultMetrics.profitLossPercentage >= 0;
@@ -294,7 +295,7 @@ export default function MetricsPanel({
             {/* Dynamic Baseline Tag with Active Ledger Currency */}
             <div id="metrics-dynamic-baseline-tag" className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-950/80 text-amber-300 border border-amber-700/60 shadow-xs">
               <span className="text-amber-500 font-normal">Baseline:</span>
-              <span className="text-amber-200">{activeCurrency.symbol}{((defaultMetrics.baselineUSD ?? (defaultMetrics.activeLedgerMode === 'live' ? defaultMetrics.portfolioUSD : 190412.50)) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              <span className="text-amber-200">{activeCurrency.symbol}{((defaultMetrics.baselineUSD ?? (defaultMetrics.activeLedgerMode === 'live' ? defaultMetrics.portfolioUSD : 100000.00)) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
               <span className="text-[9px] text-amber-400/80 uppercase">{activeCurrency.quote}</span>
             </div>
 
@@ -343,7 +344,7 @@ export default function MetricsPanel({
                     <div className="flex justify-between items-center">
                       <span className="text-zinc-400">Baseline Reference ({activeCurrency.quote}):</span>
                       <span className="font-bold text-amber-300">
-                        {activeCurrency.symbol}{((defaultMetrics.baselineUSD ?? (defaultMetrics.activeLedgerMode === 'live' ? defaultMetrics.portfolioUSD : 190412.50)) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeCurrency.quote}
+                        {activeCurrency.symbol}{((defaultMetrics.baselineUSD ?? (defaultMetrics.activeLedgerMode === 'live' ? defaultMetrics.portfolioUSD : 100000.00)) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeCurrency.quote}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -417,7 +418,7 @@ export default function MetricsPanel({
           </div>
           <span className="text-zinc-500 text-[11px] font-mono flex items-center space-x-1">
             <span>{defaultMetrics.activeLedgerMode === 'live' ? 'vs. initial live baseline' : 'vs. paper seed baseline'}</span>
-            <span className="text-zinc-400 font-semibold">({activeCurrency.symbol}{((defaultMetrics.baselineUSD ?? (defaultMetrics.activeLedgerMode === 'live' ? defaultMetrics.portfolioUSD : 190412.50)) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} {activeCurrency.quote})</span>
+            <span className="text-zinc-400 font-semibold">({activeCurrency.symbol}{((defaultMetrics.baselineUSD ?? (defaultMetrics.activeLedgerMode === 'live' ? defaultMetrics.portfolioUSD : 100000.00)) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} {activeCurrency.quote})</span>
           </span>
         </div>
       </motion.div>
@@ -627,68 +628,9 @@ export default function MetricsPanel({
                   Loading 1h trajectory...
                 </div>
               ) : historyData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={historyData} margin={{ top: 5, right: 6, left: -24, bottom: 0 }}>
-                    <CartesianGrid stroke="#27272a" strokeDasharray="3 3" vertical={false} />
-                    <XAxis 
-                      dataKey="time" 
-                      tick={{ fontSize: 9, fill: "#71717a", fontFamily: "monospace" }}
-                      axisLine={{ stroke: "#27272a" }}
-                      tickLine={false}
-                      interval="preserveStartEnd"
-                    />
-                    <YAxis 
-                      tick={{ fontSize: 9, fill: "#71717a", fontFamily: "monospace" }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(val) => `$${Number(val).toFixed(0)}`}
-                      domain={['auto', 'auto']}
-                    />
-                    <Tooltip 
-                      content={({ active, payload, label }) => {
-                        if (active && payload && payload.length) {
-                          const dataPoint = payload[0].payload as PnLHistoryPoint;
-                          const val = Number(payload[0].value || 0);
-                          const isPos = val >= 0;
-                          return (
-                            <div className="bg-zinc-950 border border-zinc-800 p-2 rounded shadow-xl font-mono text-[11px] space-y-1">
-                              <div className="text-zinc-400 text-[10px] border-b border-zinc-850 pb-1 flex justify-between gap-3">
-                                <span>Time: {label}</span>
-                                <span className="text-zinc-500">1H Interval</span>
-                              </div>
-                              <div className="flex justify-between items-center gap-3 font-semibold">
-                                <span className="text-zinc-300">Cum. P&amp;L:</span>
-                                <span className={isPos ? 'text-emerald-400' : 'text-rose-400'}>
-                                  {isPos ? '+' : ''}${val.toFixed(2)} USD
-                                </span>
-                              </div>
-                              {dataPoint.realized !== undefined && (
-                                <div className="text-[9px] text-zinc-500 flex justify-between gap-3">
-                                  <span>Realized: ${dataPoint.realized.toFixed(2)}</span>
-                                  {dataPoint.unrealized !== undefined && (
-                                    <span>Unrealized: ${dataPoint.unrealized.toFixed(2)}</span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <ReferenceLine y={0} stroke="#52525b" strokeDasharray="2 2" />
-                    <Line 
-                      type="monotone" 
-                      dataKey="pnl" 
-                      stroke={chartStrokeColor} 
-                      strokeWidth={2} 
-                      dot={false}
-                      activeDot={{ r: 4, fill: isStratProfit ? "#34d399" : "#fb7185", stroke: "#09090b", strokeWidth: 2 }}
-                      isAnimationActive={true}
-                      animationDuration={700}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <div className="w-full h-full pb-4 pr-6 pl-6 pt-1 relative">
+                  <FramerMotionTrendline data={historyData} color={chartStrokeColor} />
+                </div>
               ) : (
                 <div className="h-full flex items-center justify-center text-xs font-mono text-zinc-500">
                   No historical P&amp;L ticks recorded yet

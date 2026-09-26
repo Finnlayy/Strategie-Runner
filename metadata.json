@@ -1,6 +1,6 @@
 {
   "name": "Remix: Kraken Strategy Runner",
-  "description": "Enterprise Kraken algorithmic trading system featuring Strategy Registry ('Karteibuch') with cryptographic hash-chaining, automated badge certification, synthetic extreme-market stress drills (Hurst exponent), and Champion vs Challenger Shadow-Queue A/B testing.",
+  "description": "Enterprise Kraken algorithmic trading system featuring Gemini Managed Agent (Agentic Data Analyst powered by Gemini 3.8 Flash), Strategy Registry ('Karteibuch') with cryptographic hash-chaining, automated badge certification, synthetic extreme-market stress drills (Hurst exponent), and Champion vs Challenger Shadow-Queue A/B testing.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
