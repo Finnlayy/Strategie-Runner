@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "prebuild": "python3 -m pip install -r requirements.txt || true",
+    "prebuild": "python3 -c 'import polars, numpy, mcp, pyarrow, duckdb' 2>/dev/null || python3 -m pip install -q -r requirements.txt || true",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs && esbuild server/mcp/server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/mcp-server.cjs",
     "start": "node dist/server.cjs",
     "mcp:ts": "tsx server/mcp/server.ts",
