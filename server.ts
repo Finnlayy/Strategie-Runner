@@ -1275,7 +1275,33 @@ function resetAllHistory() {
 const strategyLastEvaluated: Record<string, number> = {};
 const priceHistoryBuffer: Record<string, number[]> = {};
 const tvRemixCache: Record<string, any> = {};
+const ohlcCache: Record<string, number[]> = {};
 const lastOnnxEntryState: Record<string, { state: number[]; action: number; price: number; valueEstimate: number; confidence: number }> = {};
+
+// Background task to continuously fetch OHLC candles for active strategies
+setInterval(async () => {
+  const activeStrats = strategies.filter(s => s.status === 'active');
+  const fetchedKeys = new Set<string>();
+  
+  for (const strat of activeStrats) {
+    if (!strat.assetPair || !strat.interval) continue;
+    const cacheKey = `${strat.assetPair}_${strat.interval}`;
+    
+    if (fetchedKeys.has(cacheKey)) continue; // Already fetched in this loop
+    fetchedKeys.add(cacheKey);
+    
+    try {
+      const candles = await fetchLiveKrakenOHLC(strat.assetPair, strat.interval);
+      if (candles && candles.length > 0) {
+        ohlcCache[cacheKey] = candles.map(c => c.close);
+      }
+    } catch (e) {
+      // Silently retry next time
+    }
+    // Delay to prevent Kraken rate limit
+    await new Promise(r => setTimeout(r, 1500));
+  }
+}, 60000); // Update every 60s
 
 // Background task to continuously fetch TVRemix technicals for active strategy assets
 setInterval(async () => {
@@ -1343,10 +1369,18 @@ setInterval(() => {
         if (!priceHistoryBuffer[pair]) {
           priceHistoryBuffer[pair] = [];
         }
-        const prices = priceHistoryBuffer[pair];
+        const tickPrices = priceHistoryBuffer[pair];
         // No dummy warm-up, wait for buffer to fill naturally
-        prices.push(ticker.price);
-        if (prices.length > 50) prices.shift(); // Keep last 50 close prices
+        tickPrices.push(ticker.price);
+        if (tickPrices.length > 50) tickPrices.shift(); // Keep last 50 close prices
+
+        const cacheKey = `${pair}_${strat.interval}`;
+        let prices = ohlcCache[cacheKey] ? [...ohlcCache[cacheKey]] : [...tickPrices];
+        
+        // Append the current live tick price to the end of the historical candles
+        if (ohlcCache[cacheKey]) {
+           prices.push(ticker.price);
+        }
 
         const pnlRec = strategyPnLMap[strat.id];
         const currentPos = pnlRec?.positionAmount || 0;

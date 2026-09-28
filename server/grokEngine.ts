@@ -90,7 +90,7 @@ export interface GrokEngineConfig {
 function readConfig(): GrokEngineConfig {
   return {
     apiKey: process.env.XAI_API_KEY?.trim() || "",
-    baseUrl: (process.env.XAI_BASE_URL?.trim() || "https://api.x.ai/v1").replace(/\/+$/, ""),
+    baseUrl: (process.env.XAI_BASE_URL?.trim() || "https://api.oneprovider.dev/v1").replace(/\/+$/, ""),
     providerMode: (process.env.QUANT_LLM_PROVIDER as GrokEngineConfig["providerMode"]) || "hybrid",
     tierOverride: process.env.XAI_TIER ? numEnv("XAI_TIER", -1) : null,
     monthlySpendCapUsd: numEnv("GROK_MONTHLY_SPEND_CAP_USD", 250),

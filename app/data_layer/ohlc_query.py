@@ -303,7 +303,8 @@ class OHLCVQueryEngine:
                 }
                 for s in sym_stats
             ]
-        except Exception:
+        except Exception as e:
+            print("ERROR IN DUCKDB:", e)
             total_rows = 0
             min_ts, max_ts = None, None
             symbol_details = []

@@ -55,7 +55,7 @@ ${SERIALIZER_HELPER}
 from app.data_layer.facade import market_data
 print(json.dumps(market_data.get_lake_summary(), default=_json_serial))
 `;
-  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
+  return runPythonCommand(`.venv/bin/python -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
 }
 
 export async function seedLakeData(symbol: string = "BTC/USD", days: number = 7, intervalMin: number = 1): Promise<any> {
@@ -74,7 +74,7 @@ print(json.dumps({
   "files_written": [str(p) for p in written]
 }, default=_json_serial))
 `;
-  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
+  return runPythonCommand(`.venv/bin/python -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
 }
 
 export async function queryLakeRange(symbol: string = "BTC/USD", limit: number = 100): Promise<any> {
@@ -95,7 +95,7 @@ print(json.dumps({
   "records": rows
 }, default=_json_serial))
 `;
-  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
+  return runPythonCommand(`.venv/bin/python -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
 }
 
 export async function resampleLakeData(symbol: string = "BTC/USD", interval: string = "1 hour", limit: number = 100): Promise<any> {
@@ -116,7 +116,7 @@ print(json.dumps({
   "records": rows
 }, default=_json_serial))
 `;
-  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
+  return runPythonCommand(`.venv/bin/python -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
 }
 
 export async function runLakeCompaction(symbol?: string): Promise<any> {
@@ -128,7 +128,7 @@ from app.data_layer.facade import market_data
 res = market_data.compact(symbol=${symArg})
 print(json.dumps(res, default=_json_serial))
 `;
-  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
+  return runPythonCommand(`.venv/bin/python -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
 }
 
 export async function runDriveSync(symbol?: string): Promise<any> {
@@ -140,5 +140,5 @@ from app.data_layer.facade import market_data
 res = market_data.sync_to_cloud(symbol=${symArg})
 print(json.dumps(res, default=_json_serial))
 `;
-  return runPythonCommand(`python3 -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
+  return runPythonCommand(`.venv/bin/python -W ignore -c '${pyCode.replace(/'/g, "'\\''")}'`);
 }
