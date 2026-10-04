@@ -13,9 +13,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-import duckdb
-import polars as pl
-import pyarrow as pa
+try:
+    import duckdb
+except ImportError:
+    duckdb = None
+
+try:
+    import polars as pl
+except ImportError:
+    pl = None
+
+try:
+    import pyarrow as pa
+except ImportError:
+    pa = None
 
 from app.core.config import settings
 from app.data_layer.ohlc_storage import normalize_symbol_name

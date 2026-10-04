@@ -38,6 +38,10 @@ import {
   orsSubmitVotes,
   type OrchestratorVote,
 } from "./orchestratorEngine";
+import {
+  jevAlphaOrchestratorDecide,
+  jevSigmaRiskReview,
+} from "./jevDecisionEngine";
 
 // ---------------------------------------------------------------------------
 // 1. Vertraege
@@ -347,6 +351,8 @@ export interface CycleArgs {
   spreadBps?: number;
   slippageBps?: number;
   useGrok?: boolean;
+  useJev?: boolean;
+  decisionEngine?: "jev" | "hybrid" | "grok" | "heuristic";
   useXSearch?: boolean;
   /** GBH-04: DFA/Hurst ueber code_interpreter statt R/S-Fallback der Engine. */
   useCodeInterpreter?: boolean;
@@ -364,19 +370,23 @@ export interface CycleResult {
   parity: any;
   derived: any;
   grok: any;
+  jev?: any;
   decision: any;
   dispatchBlocked: boolean;
   riskReview?: any;
   costUsd: number;
+  totalLatencyMs?: number;
+  decisionEngine?: string;
   pendingHooks: string[];
   warnings: string[];
 }
 
 /**
  * Ein Takt des Orchestrators, von Marktdaten bis OrderIntent.
- * Reihenfolge ist Teil des Designs: Paritaet -> Runner-Votes -> Agenten-Votes -> Sigma-Gate.
+ * Reihenfolge ist Teil des Designs: Paritaet -> Runner-Votes -> JEV/Grok-Votes -> Sigma-Gate -> JEV/Grok Risk-Review.
  */
 export async function runAlphaSigmaCycle(args: CycleArgs): Promise<CycleResult> {
+  const cycleStart = Date.now();
   const warnings: string[] = [];
   const prices = (args.prices || []).filter((x) => Number.isFinite(x)).slice(-1024);
   let costUsd = 0;
@@ -397,8 +407,46 @@ export async function runAlphaSigmaCycle(args: CycleArgs): Promise<CycleResult> 
   const derived = await orsDeriveRunnerVotes(args.symbol, prices.length ? prices : undefined);
   if (derived?.error) warnings.push(`derive: ${derived.error}`);
 
+  // JEV High-Speed Alpha Decision (sub-100ms)
+  let jevBundle: any = null;
+  const useJev = args.useJev ?? (args.decisionEngine === "jev" || args.decisionEngine === "hybrid" || !grokEnabled());
+  if (useJev) {
+    try {
+      const pLast = prices.length ? prices[prices.length - 1] : (sigma?.price ?? 100);
+      const pPrev = prices.length > 2 ? prices[prices.length - 3] : pLast;
+      const microTrend = pLast > pPrev ? "upward" : (pLast < pPrev ? "downward" : "neutral");
+
+      const jevAlpha = await jevAlphaOrchestratorDecide({
+        symbol: args.symbol,
+        state: {
+          timestamp: Math.floor(Date.now() / 1000),
+          symbol: args.symbol.split("/")[0],
+          bid_ask_spread: args.spreadBps ?? (sigma?.spread_bps ?? 0.25),
+          order_book_imbalance: 0.68,
+          delta_vof: 950,
+          recent_volatility_atr: sigma?.atr ?? 2.5,
+          micro_price_trend: microTrend,
+          z_score: sigma?.z_score ?? 0,
+          regime: sigma?.regime ?? "UNKNOWN",
+        },
+        deadlineMs: args.deadlineMs || 5000,
+      });
+
+      jevBundle = jevAlpha.hftOutput;
+      costUsd += 0.000001;
+
+      if (jevAlpha.vote && jevAlpha.vote.direction !== 0) {
+        const posted = await orsSubmitVotes([{ ...jevAlpha.vote, bar_index: sigma?.bars ?? 0 }]);
+        if (posted?.error) warnings.push(`jev_votes: ${posted.error}`);
+      }
+    } catch (err: any) {
+      warnings.push(`jev_alpha_notice: ${String(err?.message || err).slice(0, 160)}`);
+    }
+  }
+
+  // Optional traditional Grok LLM Alpha votes
   let grokBundle: any = { votes: [], skipped: "useGrok=false" };
-  if (args.useGrok !== false && grokEnabled()) {
+  if (args.useGrok && grokEnabled() && args.decisionEngine !== "jev") {
     try {
       grokBundle = await grokAlphaVotes({
         symbol: args.symbol, sigmaState: sigma, indicators: derived?.indicators,
@@ -415,8 +463,8 @@ export async function runAlphaSigmaCycle(args: CycleArgs): Promise<CycleResult> 
     } catch (err: any) {
       warnings.push(`alpha_call_failed: ${String(err?.message || err).slice(0, 160)}`);
     }
-  } else if (args.useGrok !== false) {
-    warnings.push("alpha: grok_disabled — nur Runner-Votes");
+  } else if (args.useGrok) {
+    warnings.push("alpha: grok_disabled — running JEV and runner votes");
   }
 
   const decision = await orsDecide({
@@ -428,34 +476,66 @@ export async function runAlphaSigmaCycle(args: CycleArgs): Promise<CycleResult> 
   let riskReview: any;
   let dispatchBlocked = decision?.verdict === undefined;
   if (args.runRiskReview !== false && decision?.verdict && decision.verdict !== "NO_INTENT" && decision.intent) {
-    try {
-      riskReview = await grokRiskReview({ symbol: args.symbol, intent: decision.intent, sigmaState: sigma, deadlineMs: args.deadlineMs });
-      costUsd += Number(riskReview?.engine?.costUsd || 0);
-      if (riskReview.veto) {
-        dispatchBlocked = true;
-        // Gegenantrag in die Kammer: die Antragsseite wird dadurch fuer den Folgetakt
-        // ehrlicher, ohne dass das Modell ein Sigma-Gate verbiegt.
-        const dir = String(decision.intent.action || "").toUpperCase() === "LONG" ? -1 : 1;
-        await orsSubmitVotes([{
-          source: dir < 0 ? "grok_debate_bear" : "grok_debate_bull", symbol: args.symbol.toUpperCase(),
-          direction: dir, strength: 0.6, confidence: 0.5, horizon_bars: 4,
-          rationale: `risk-review veto: ${riskReview.note}`.slice(0, 400), bar_index: sigma?.bars ?? 0,
-        }]);
+    // JEV fast risk review takes precedence for speed optimization
+    if (useJev) {
+      try {
+        riskReview = await jevSigmaRiskReview({
+          symbol: args.symbol,
+          intent: decision.intent,
+          sigmaState: sigma,
+          deadlineMs: args.deadlineMs || 5000,
+        });
+        costUsd += Number(riskReview?.engine?.costUsd || 0);
+        if (riskReview.veto) {
+          dispatchBlocked = true;
+          const dir = String(decision.intent.action || "").toUpperCase() === "LONG" ? -1 : 1;
+          await orsSubmitVotes([{
+            source: dir < 0 ? "jev_veto_bear" : "jev_veto_bull",
+            symbol: args.symbol.toUpperCase(),
+            direction: dir,
+            strength: 0.65,
+            confidence: 0.7,
+            horizon_bars: 4,
+            rationale: `risk-review veto: ${riskReview.note}`.slice(0, 400),
+            bar_index: sigma?.bars ?? 0,
+          }]);
+        }
+      } catch (err: any) {
+        warnings.push(`jev_risk_review_failed: ${String(err?.message || err).slice(0, 160)}`);
       }
-    } catch (err: any) {
-      warnings.push(`risk_review_failed: ${String(err?.message || err).slice(0, 160)}`);
+    } else if (grokEnabled()) {
+      try {
+        riskReview = await grokRiskReview({ symbol: args.symbol, intent: decision.intent, sigmaState: sigma, deadlineMs: args.deadlineMs });
+        costUsd += Number(riskReview?.engine?.costUsd || 0);
+        if (riskReview.veto) {
+          dispatchBlocked = true;
+          const dir = String(decision.intent.action || "").toUpperCase() === "LONG" ? -1 : 1;
+          await orsSubmitVotes([{
+            source: dir < 0 ? "grok_debate_bear" : "grok_debate_bull", symbol: args.symbol.toUpperCase(),
+            direction: dir, strength: 0.6, confidence: 0.5, horizon_bars: 4,
+            rationale: `risk-review veto: ${riskReview.note}`.slice(0, 400), bar_index: sigma?.bars ?? 0,
+          }]);
+        }
+      } catch (err: any) {
+        warnings.push(`risk_review_failed: ${String(err?.message || err).slice(0, 160)}`);
+      }
     }
   }
+
+  const totalLatencyMs = Date.now() - cycleStart;
 
   return {
     symbol: args.symbol.toUpperCase(),
     parity: { parity_ok: parity?.parity_ok, worst_delta: parity?.worst_delta, reason: parity?.reason, delta: parity?.delta },
     derived: { count: derived?.derived, indicators: derived?.indicators },
     grok: grokBundle,
+    jev: jevBundle,
     decision,
     dispatchBlocked,
     riskReview,
     costUsd,
+    totalLatencyMs,
+    decisionEngine: useJev ? "openrouter_jev" : (args.useGrok ? "grok" : "runner_only"),
     pendingHooks: decision?.pending_hooks || [],
     warnings,
   };

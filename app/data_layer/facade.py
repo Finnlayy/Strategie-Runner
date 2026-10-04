@@ -9,8 +9,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-import polars as pl
-import pyarrow as pa
+try:
+    import polars as pl
+except ImportError:
+    pl = None
+
+try:
+    import pyarrow as pa
+except ImportError:
+    pa = None
 
 from app.core.config import settings
 from app.data_layer.gdrive_sync import gdrive_sync_manager

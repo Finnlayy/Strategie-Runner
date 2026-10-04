@@ -83,6 +83,7 @@ export default function StrategyEditor({
   const [isTvRemixOpen, setIsTvRemixOpen] = useState(false);
   const [isFetchingTv, setIsFetchingTv] = useState(false);
   const [tvResult, setTvResult] = useState<any>(null);
+  const [showTvRawJson, setShowTvRawJson] = useState(false);
 
   const handleRequestQueueChange = (target: 'paper' | 'live') => {
     if (target === executionMode) return;
@@ -546,31 +547,174 @@ if (tvSignals && tvSignals.RECOMMENDATION === "STRONG_BUY") {
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm text-zinc-400">
-                  Live technical indicators and screener data for <span className="text-zinc-200 font-bold">{assetPair}</span> from TVRemix.
-                </p>
+            <div className="p-6 overflow-y-auto space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-xs font-mono text-emerald-400 font-semibold uppercase tracking-wider">
+                      TradingView Remix Bridge
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Live technical indicators and screener data for <span className="text-zinc-100 font-bold">{assetPair}</span> (KRAKEN:{assetPair.replace("/", "")}).
+                  </p>
+                </div>
                 <button
                   onClick={handleFetchTvRemix}
                   disabled={isFetchingTv}
-                  className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white px-4 py-2 rounded text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2"
+                  className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white px-4 py-2 rounded text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md shrink-0"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isFetchingTv ? "animate-spin" : ""}`} />
-                  Refresh
+                  <span>{isFetchingTv ? "Fetching..." : "Refresh"}</span>
                 </button>
               </div>
 
-              {tvResult ? (
-                <div className="bg-black/50 border border-zinc-800 rounded-lg p-4">
-                  <pre className="text-xs font-mono text-zinc-300 whitespace-pre-wrap">
-                    {typeof tvResult === 'string' ? tvResult : JSON.stringify(tvResult, null, 2)}
-                  </pre>
+              {isFetchingTv ? (
+                <div className="flex flex-col items-center justify-center py-12 text-zinc-400 space-y-3">
+                  <RefreshCw className="w-8 h-8 animate-spin text-amber-400" />
+                  <span className="font-mono text-xs">Querying TVRemix MCP Technicals...</span>
                 </div>
-              ) : isFetchingTv ? (
-                <div className="flex items-center justify-center py-12 text-zinc-500">
-                  <RefreshCw className="w-6 h-6 animate-spin" />
-                  <span className="ml-3 font-mono text-sm">Fetching technicals...</span>
+              ) : tvResult && !tvResult.error ? (
+                <div className="space-y-4">
+                  {/* Primary Recommendation Banner */}
+                  {(() => {
+                    const data = tvResult.data || tvResult;
+                    const rec = (data.summary?.recommendation || tvResult.RECOMMENDATION || "NEUTRAL").toString().toUpperCase();
+                    const rsi = data.oscillators?.rsi ?? tvResult.RSI;
+                    const price = data.price ?? tvResult.PRICE;
+                    const change = data.change;
+                    const volume = data.volume;
+                    const isBuy = rec.includes("BUY");
+                    const isSell = rec.includes("SELL");
+
+                    return (
+                      <>
+                        <div className={`p-4 rounded-xl border flex items-center justify-between ${
+                          isBuy 
+                            ? "bg-emerald-950/30 border-emerald-500/40 text-emerald-200" 
+                            : isSell 
+                            ? "bg-rose-950/30 border-rose-500/40 text-rose-200" 
+                            : "bg-amber-950/30 border-amber-500/40 text-amber-200"
+                        }`}>
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2.5 rounded-lg ${
+                              isBuy ? "bg-emerald-500/20 text-emerald-400" : isSell ? "bg-rose-500/20 text-rose-400" : "bg-amber-500/20 text-amber-400"
+                            }`}>
+                              <Zap className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-mono uppercase tracking-wider opacity-75">
+                                TradingView Screener Signal
+                              </div>
+                              <div className="text-xl font-bold font-mono tracking-wide">
+                                {rec}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="text-right font-mono">
+                            <div className="text-[10px] uppercase opacity-75">1H Indicator Verdict</div>
+                            <div className="text-sm font-semibold">
+                              {data.summary?.value !== undefined ? `Score: ${(Number(data.summary.value) * 100).toFixed(0)}%` : "Active"}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Metric Cards Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div className="bg-black/50 border border-zinc-800 p-3 rounded-lg">
+                            <div className="text-[10px] text-zinc-500 font-mono uppercase">RSI (14)</div>
+                            <div className={`text-lg font-bold font-mono mt-0.5 ${
+                              Number(rsi) > 70 ? "text-rose-400" : Number(rsi) < 30 ? "text-emerald-400" : "text-amber-400"
+                            }`}>
+                              {rsi !== undefined ? Number(rsi).toFixed(1) : "N/A"}
+                            </div>
+                            <div className="text-[9px] text-zinc-500 font-mono">
+                              {Number(rsi) > 70 ? "Overbought" : Number(rsi) < 30 ? "Oversold" : "Neutral range"}
+                            </div>
+                          </div>
+
+                          <div className="bg-black/50 border border-zinc-800 p-3 rounded-lg">
+                            <div className="text-[10px] text-zinc-500 font-mono uppercase">Live Price</div>
+                            <div className="text-lg font-bold font-mono text-zinc-100 mt-0.5">
+                              {price !== undefined ? `$${Number(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "N/A"}
+                            </div>
+                            <div className="text-[9px] text-zinc-500 font-mono">Real-time ticker</div>
+                          </div>
+
+                          <div className="bg-black/50 border border-zinc-800 p-3 rounded-lg">
+                            <div className="text-[10px] text-zinc-500 font-mono uppercase">24H Change</div>
+                            <div className={`text-lg font-bold font-mono mt-0.5 ${
+                              Number(change) >= 0 ? "text-emerald-400" : "text-rose-400"
+                            }`}>
+                              {change !== undefined ? `${Number(change) >= 0 ? "+" : ""}${Number(change).toFixed(2)}%` : "N/A"}
+                            </div>
+                            <div className="text-[9px] text-zinc-500 font-mono">Momentum</div>
+                          </div>
+
+                          <div className="bg-black/50 border border-zinc-800 p-3 rounded-lg">
+                            <div className="text-[10px] text-zinc-500 font-mono uppercase">Volume</div>
+                            <div className="text-lg font-bold font-mono text-zinc-300 mt-0.5">
+                              {volume !== undefined ? `${(Number(volume) / 1e6).toFixed(1)}M` : "N/A"}
+                            </div>
+                            <div className="text-[9px] text-zinc-500 font-mono">24H volume</div>
+                          </div>
+                        </div>
+
+                        {/* Strategy usage helper tip */}
+                        <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800/80 text-xs font-mono space-y-1">
+                          <div className="text-zinc-400 flex items-center justify-between">
+                            <span>Using in Strategy Javascript:</span>
+                            <span className="text-[10px] text-zinc-500">tvSignals available in sandbox</span>
+                          </div>
+                          <div className="text-emerald-400 text-[11px] bg-black/60 p-2 rounded border border-zinc-900 overflow-x-auto">
+                            {'if (tvSignals && tvSignals.RECOMMENDATION === "BUY") { executeOrder(\'buy\', 0.1); }'}
+                          </div>
+                        </div>
+
+                        {/* Collapsible raw JSON */}
+                        <div className="pt-1">
+                          <button
+                            onClick={() => setShowTvRawJson(!showTvRawJson)}
+                            className="text-xs font-mono text-zinc-400 hover:text-zinc-200 underline cursor-pointer"
+                          >
+                            {showTvRawJson ? "▲ Hide Raw JSON Payload" : "▼ Inspect Raw JSON Payload"}
+                          </button>
+                          {showTvRawJson && (
+                            <div className="mt-2 bg-black/70 border border-zinc-800 rounded-lg p-3 max-h-56 overflow-y-auto">
+                              <pre className="text-[11px] font-mono text-zinc-300 whitespace-pre-wrap">
+                                {JSON.stringify(tvResult, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              ) : tvResult && tvResult.error ? (
+                <div className="space-y-3">
+                  <div className="bg-rose-950/30 border border-rose-800/60 rounded-lg p-4 text-xs font-mono text-rose-300 space-y-2">
+                    <div className="font-bold text-rose-400 flex items-center gap-2">
+                      <X className="w-4 h-4" />
+                      <span>{tvResult.error}</span>
+                    </div>
+                    <p className="text-zinc-400 text-[11px]">
+                      The system automatically engages the internal Kraken real-time telemetry fallback if TVRemix is undergoing rate limits or network maintenance.
+                    </p>
+                    <button
+                      onClick={handleFetchTvRemix}
+                      className="bg-rose-900/60 hover:bg-rose-800 text-rose-200 px-3 py-1.5 rounded text-xs transition-colors cursor-pointer"
+                    >
+                      Retry Connection
+                    </button>
+                  </div>
+                  <div className="bg-black/50 border border-zinc-800 rounded-lg p-3">
+                    <pre className="text-xs font-mono text-zinc-400 whitespace-pre-wrap">
+                      {JSON.stringify(tvResult, null, 2)}
+                    </pre>
+                  </div>
                 </div>
               ) : null}
             </div>

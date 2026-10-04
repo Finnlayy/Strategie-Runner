@@ -15,8 +15,15 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-import polars as pl
-import pyarrow.parquet as pq
+try:
+    import polars as pl
+except ImportError:
+    pl = None
+
+try:
+    import pyarrow.parquet as pq
+except ImportError:
+    pq = None
 
 from app.core.config import settings
 from app.data_layer.ohlc_storage import OHLCV_PYARROW_SCHEMA, normalize_symbol_name

@@ -62,9 +62,13 @@ export default function AgenticDataAnalystPanel({
   // Load Presets on Mount
   useEffect(() => {
     fetch("/api/ai/managed-agent/presets")
-      .then((res) => res.json())
+      .then((res) => {
+        const ct = res.headers.get("content-type") || "";
+        if (!ct.includes("application/json")) return null;
+        return res.json();
+      })
       .then((data) => {
-        if (data.presets && Array.isArray(data.presets)) {
+        if (data && data.presets && Array.isArray(data.presets)) {
           setPresets(data.presets);
         }
       })
@@ -97,19 +101,27 @@ export default function AgenticDataAnalystPanel({
         }),
       });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `Server responded with ${res.status}`);
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        const rawText = await res.text();
+        if (rawText.includes("<!doctype") || rawText.includes("<html") || !res.ok) {
+          throw new Error(`The Agentic Analysis service is temporarily initializing (${res.status}). Please try again.`);
+        }
+        throw new Error(`Server returned unexpected format (${res.status})`);
       }
 
-      const data: AnalysisResult = await res.json();
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || `Server responded with status ${res.status}`);
+      }
+
       setCurrentResult(data);
       setHistory((prev) => [data, ...prev.slice(0, 9)]);
       setQuery("");
       // Expand all steps for the new result
       setExpandedSteps({ 0: true, 1: true, 2: true, 3: true });
     } catch (err: any) {
-      console.error("Agentic Analysis failed:", err);
+      console.warn("Agentic Analysis notice:", err.message);
       setErrorMsg(err.message || "Failed to execute agentic data analysis.");
     } finally {
       setIsAnalyzing(false);
@@ -125,7 +137,14 @@ export default function AgenticDataAnalystPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: pythonCode }),
       });
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error(`Sandbox execution format error (${res.status})`);
+      }
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || `Execution failed with code ${res.status}`);
+      }
       if (currentResult) {
         // Update the code execution step output
         const updatedSteps = currentResult.steps.map((s) => {

@@ -15,8 +15,15 @@ import threading
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import numpy as np
-import polars as pl
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
+try:
+    import polars as pl
+except ImportError:
+    pl = None
 
 from app.core.config import settings
 from app.core.directives import ExecutionPath, system_directive
@@ -35,8 +42,11 @@ class ShmRingBuffer:
     def __init__(self, symbol: str, capacity: int = 10000):
         self.symbol = symbol
         self.capacity = capacity
-        # Preallocated structured numpy array for zero-allocation hot-path writes
-        self._buffer = np.zeros((capacity, 6), dtype=np.float64)
+        # Preallocated structured numpy array for zero-allocation hot-path writes, fallback to list of lists
+        if np is not None:
+            self._buffer = np.zeros((capacity, 6), dtype=np.float64)
+        else:
+            self._buffer = [[0.0] * 6 for _ in range(capacity)]
         self._head: int = 0
         self._size: int = 0
         self._lock = threading.Lock()
@@ -46,35 +56,41 @@ class ShmRingBuffer:
         system_directive.record_path_execution(ExecutionPath.HOT_PATH)
         with self._lock:
             idx = self._head
-            self._buffer[idx, 0] = timestamp_epoch_ms
-            self._buffer[idx, 1] = open_p
-            self._buffer[idx, 2] = high_p
-            self._buffer[idx, 3] = low_p
-            self._buffer[idx, 4] = close_p
-            self._buffer[idx, 5] = volume
+            if np is not None:
+                self._buffer[idx, 0] = timestamp_epoch_ms
+                self._buffer[idx, 1] = open_p
+                self._buffer[idx, 2] = high_p
+                self._buffer[idx, 3] = low_p
+                self._buffer[idx, 4] = close_p
+                self._buffer[idx, 5] = volume
+            else:
+                self._buffer[idx] = [timestamp_epoch_ms, open_p, high_p, low_p, close_p, volume]
 
             self._head = (self._head + 1) % self.capacity
             if self._size < self.capacity:
                 self._size += 1
 
-    def get_latest(self, n: int = 100) -> np.ndarray:
+    def get_latest(self, n: int = 100) -> Any:
         """
         Retrieves the latest n items in chronological order.
         """
         system_directive.record_path_execution(ExecutionPath.HOT_PATH)
         with self._lock:
             if self._size == 0:
-                return np.empty((0, 6), dtype=np.float64)
+                return np.empty((0, 6), dtype=np.float64) if np is not None else []
 
             count = min(n, self._size)
             if self._size < self.capacity:
                 # Contiguous slice from start
                 start = max(0, self._head - count)
-                return self._buffer[start:self._head].copy()
+                slice_data = self._buffer[start:self._head]
+                return slice_data.copy() if hasattr(slice_data, "copy") else list(slice_data)
             else:
                 # Wrapped slice
                 indices = [(self._head - count + i) % self.capacity for i in range(count)]
-                return self._buffer[indices].copy()
+                if np is not None:
+                    return self._buffer[indices].copy()
+                return [self._buffer[i] for i in indices]
 
     def size(self) -> int:
         with self._lock:

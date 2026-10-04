@@ -27,6 +27,7 @@ import { StrategyListItem } from "./components/StrategyListItem";
 import { GoogleDriveOnnxModal } from "./components/GoogleDriveOnnxModal";
 import AgenticDataAnalystPanel from "./components/AgenticDataAnalystPanel";
 import { OnnxNeuralStudio } from "./components/OnnxNeuralStudio";
+import { JevAgentBridgePanel } from "./components/JevAgentBridgePanel";
 import { SystemHealthPanel } from "./components/quant/SystemHealthPanel";
 import { QuantitativeRegimePanel } from "./components/quant/QuantitativeRegimePanel";
 import { ExecutionRiskPanel } from "./components/quant/ExecutionRiskPanel";
@@ -35,7 +36,7 @@ import { WalletsPanel } from "./components/quant/WalletsPanel";
 
 export default function App() {
   // Page Navigation State
-  const [activePage, setActivePage] = useState<'overview' | 'health' | 'regime' | 'execution' | 'wallets' | 'orchestrator' | 'backtesting' | 'genetic' | 'queues' | 'ledgers' | 'datalake' | 'analyst' | 'onnx'>('overview');
+  const [activePage, setActivePage] = useState<'overview' | 'health' | 'regime' | 'execution' | 'wallets' | 'orchestrator' | 'backtesting' | 'genetic' | 'queues' | 'ledgers' | 'datalake' | 'analyst' | 'onnx' | 'jev'>('overview');
 
   const [strategies, setStrategies] = useState<TradingStrategy[]>([]);
   const [selectedStrategy, setSelectedStrategy] = useState<TradingStrategy | null>(null);
@@ -617,6 +618,22 @@ export default function App() {
               <span>ONNX Studio</span>
               <span className="bg-blue-900/80 text-blue-200 border border-blue-700/60 text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
                 RL Fast-Path
+              </span>
+            </button>
+
+            <button
+              id="nav-tab-jev-bridge"
+              onClick={() => setActivePage('jev')}
+              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-md text-xs font-mono font-medium transition-all ${
+                activePage === 'jev'
+                  ? 'bg-indigo-950/80 text-indigo-300 shadow-sm border border-indigo-700/80 font-bold'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Jev Bridge</span>
+              <span className="bg-indigo-900/80 text-indigo-200 border border-indigo-700/60 text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
+                Jev 1.13
               </span>
             </button>
 
@@ -1471,6 +1488,19 @@ export default function App() {
                 }, {} as Record<string, MarketTicker>)}
                 selectedPair={activePair}
               />
+            </motion.div>
+          ) : activePage === 'jev' ? (
+            /* ======================================================== */
+            /* PAGE 10: JEV DECISION AGENT & KRAKEN CLI BRIDGE          */
+            /* ======================================================== */
+            <motion.div
+              key="jev-bridge-page"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+            >
+              <JevAgentBridgePanel activePair={activePair} />
             </motion.div>
           ) : null}
         </AnimatePresence>

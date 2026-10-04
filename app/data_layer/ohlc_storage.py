@@ -16,25 +16,33 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-import polars as pl
-import pyarrow as pa
-import pyarrow.parquet as pq
+try:
+    import polars as pl
+except ImportError:
+    pl = None
+
+try:
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    # Canonical PyArrow Schema definition for enterprise OHLCV data
+    OHLCV_PYARROW_SCHEMA = pa.schema([
+        pa.field("timestamp", pa.timestamp("ns", tz="UTC"), nullable=False),
+        pa.field("symbol", pa.string(), nullable=False),
+        pa.field("timeframe", pa.string(), nullable=False),
+        pa.field("open", pa.float64(), nullable=False),
+        pa.field("high", pa.float64(), nullable=False),
+        pa.field("low", pa.float64(), nullable=False),
+        pa.field("close", pa.float64(), nullable=False),
+        pa.field("volume", pa.float64(), nullable=False),
+        pa.field("trades_count", pa.int64(), nullable=True),
+        pa.field("vwap", pa.float64(), nullable=True),
+    ])
+except ImportError:
+    pa = None
+    pq = None
+    OHLCV_PYARROW_SCHEMA = None
 
 from app.core.config import settings
-
-# Canonical PyArrow Schema definition for enterprise OHLCV data
-OHLCV_PYARROW_SCHEMA = pa.schema([
-    pa.field("timestamp", pa.timestamp("ns", tz="UTC"), nullable=False),
-    pa.field("symbol", pa.string(), nullable=False),
-    pa.field("timeframe", pa.string(), nullable=False),
-    pa.field("open", pa.float64(), nullable=False),
-    pa.field("high", pa.float64(), nullable=False),
-    pa.field("low", pa.float64(), nullable=False),
-    pa.field("close", pa.float64(), nullable=False),
-    pa.field("volume", pa.float64(), nullable=False),
-    pa.field("trades_count", pa.int64(), nullable=True),
-    pa.field("vwap", pa.float64(), nullable=True),
-])
 
 
 def normalize_symbol_name(symbol: str) -> str:
