@@ -146,3 +146,15 @@ class M8StateEngine:
             state.budget_multiplier = 1.0
 
         return state.to_dict()
+
+    async def update_eod_profit_factor(self, instance_id: str, daily_pf: Optional[float], daily_trades_count: int) -> Dict[str, Any]:
+        state = self.states.get(instance_id)
+        if not state:
+            return {}
+        if daily_trades_count == 0:
+            return state.to_dict()
+        if daily_pf is not None and daily_pf < 1.0:
+            state.consecutive_low_pf_days += 1
+        else:
+            state.consecutive_low_pf_days = 0
+        return state.to_dict()

@@ -24,3 +24,11 @@ class TradeChurnGuard:
         self.config = config or ChurnGuardConfig()
         self.last_close_timestamp: Dict[str, float] = {}
         self.daily_trade_counts: Dict[str, Tuple[int, str]] = {}
+
+    def validate_entry_signal(self, instance_id: str, entry_price: float, tp_price: float, fee_rate: float, leverage: float) -> Tuple[bool, str]:
+        # Minimalist implementation for tests
+        dist_pct = abs(tp_price - entry_price) / entry_price
+        req_hurdle = fee_rate * leverage * self.config.min_fee_hurdle_multiple
+        if dist_pct < req_hurdle:
+            return False, "FEE_HURDLE_NOT_MET"
+        return True, "OK"

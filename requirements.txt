@@ -7,3 +7,4 @@ pyarrow
 duckdb
 scipy
 pydantic
+pytest-asyncio
