@@ -67,8 +67,8 @@ class TestM8StateEnginePipeline:
 
         updated_state = await engine.update_eod_profit_factor("MEAN_REV_V3__BTC-USDT__15m__LIVE", daily_pf=None, daily_trades_count=0)
         
-        assert updated_state.consecutive_low_pf_days == 2
-        assert updated_state.status == "ACTIVE"
+        assert updated_state['consecutive_low_pf_days'] == 2
+        assert updated_state['status'] == "ACTIVE"
 
 class TestAutopsyZoneClassification:
 
@@ -116,7 +116,7 @@ class TestTradeChurnGuardAndFees:
         guard = TradeChurnGuard(config=ChurnGuardConfig(min_fee_hurdle_multiple=2.5))
         is_valid, reason = guard.validate_entry_signal("TEST__15m__LIVE", 50000.0, 50020.0, 0.0005, 2.0)
         assert is_valid is False
-        assert "FEE HURDLE REJECT" in reason
+        assert "FEE_HURDLE_NOT_MET" in reason
 
     def test_fee_engine_net_pnl_deduction(self):
         """Abzinsung von Maker/Taker Fees vom Brutto PnL."""
