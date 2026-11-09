@@ -37,6 +37,4 @@ jobs:
         
     - name: Test with pytest
       run: |
-    - name: Cache
-      uses: actions/cache@v6.1.0
         pytest
