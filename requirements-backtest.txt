@@ -1,0 +1,7 @@
+# QuantJourney research stack (full backtesting workflow).
+# Requires Python >= 3.11 because quantjourney-bt targets modern pandas/numpy.
+-r requirements.txt
+pandas>=2.0
+quantjourney-bt>=0.12.5
+quantjourney-ti>=0.3.1
+matplotlib>=3.8

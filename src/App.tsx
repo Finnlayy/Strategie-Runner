@@ -18,6 +18,7 @@ import StrategyEditor from "./components/StrategyEditor";
 import AIReviewer from "./components/AIReviewer";
 import MarketPanel from "./components/MarketPanel";
 import { BacktestingPanel } from "./components/BacktestingPanel";
+import { QJBacktestStudio } from "./components/quant/QJBacktestStudio";
 import { GeneticOptimizerPanel } from "./components/GeneticOptimizerPanel";
 import QueueMatrixPanel from "./components/QueueMatrixPanel";
 import KrakenLedgersPanel from "./components/KrakenLedgersPanel";
@@ -36,7 +37,7 @@ import { WalletsPanel } from "./components/quant/WalletsPanel";
 
 export default function App() {
   // Page Navigation State
-  const [activePage, setActivePage] = useState<'overview' | 'health' | 'regime' | 'execution' | 'wallets' | 'orchestrator' | 'backtesting' | 'genetic' | 'queues' | 'ledgers' | 'datalake' | 'analyst' | 'onnx' | 'jev'>('overview');
+  const [activePage, setActivePage] = useState<'overview' | 'health' | 'regime' | 'execution' | 'wallets' | 'orchestrator' | 'backtesting' | 'qjbacktest' | 'genetic' | 'queues' | 'ledgers' | 'datalake' | 'analyst' | 'onnx' | 'jev'>('overview');
 
   const [strategies, setStrategies] = useState<TradingStrategy[]>([]);
   const [selectedStrategy, setSelectedStrategy] = useState<TradingStrategy | null>(null);
@@ -522,6 +523,22 @@ export default function App() {
               <span>Strategy Backtesting</span>
               <span className="bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
                 OHLC
+              </span>
+            </button>
+
+            <button
+              id="nav-tab-qj-backtest"
+              onClick={() => setActivePage('qjbacktest')}
+              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-md text-xs font-mono font-medium transition-all ${
+                activePage === 'qjbacktest'
+                  ? 'bg-indigo-950/70 text-indigo-200 shadow-sm border border-indigo-700/70'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+              }`}
+            >
+              <BrainCircuit className="w-3.5 h-3.5 text-indigo-400" />
+              <span>QJ Backtest Studio</span>
+              <span className="bg-indigo-900/70 text-indigo-300 border border-indigo-700/60 text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
+                WFO
               </span>
             </button>
 
@@ -1347,6 +1364,7 @@ export default function App() {
                 strategies={strategies}
                 selectedStrategy={selectedStrategy}
                 onSelectStrategy={(strat) => setSelectedStrategy(strat)}
+                onOpenQjStudio={() => setActivePage('qjbacktest')}
                 onOpenOrchestrator={(strat) => {
                   setSelectedStrategy(strat);
                   setActivePage('orchestrator');
@@ -1354,6 +1372,20 @@ export default function App() {
                 onUpdateStrategyParams={async (stratId, params) => {
                   await handleUpdateStrategy(stratId, { parameters: params });
                 }}
+              />
+            </motion.div>
+          ) : activePage === 'qjbacktest' ? (
+            <motion.div
+              key="qj-backtest-page"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+            >
+              <QJBacktestStudio
+                strategies={strategies}
+                selectedStrategy={selectedStrategy}
+                onSelectStrategy={(strat) => setSelectedStrategy(strat)}
               />
             </motion.div>
           ) : activePage === 'genetic' ? (

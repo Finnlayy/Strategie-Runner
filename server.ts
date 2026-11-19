@@ -162,6 +162,20 @@ import {
   getKrakenMinimumOrderVolume
 } from "./server/kraken";
 import { runBacktestSimulation } from "./server/backtest";
+import {
+  getQjCapabilities,
+  runQjBacktest,
+  runQjWalkForward,
+  runQjOptimization,
+  runQjStress,
+  listQjRuns,
+  getQjRun,
+  deleteQjRun,
+  compareQjRuns,
+  readQjArtifact,
+  inferStrategySpec,
+  QjBacktestResponse,
+} from "./server/qjBacktest";
 import { 
   runGeneticWalkForwardOptimization, 
   generateStrategyCodeFromChromosome, 
@@ -4412,27 +4426,167 @@ app.get("/api/jev/history", (_req: Request, res: Response) => {
   res.json({ history: getJevHistory() });
 });
 
-// BACKTESTING ENGINE: RUN STRATEGY BACKTEST
-app.post("/api/backtest/run", async (req: Request, res: Response) => {
-  try {
-    const { 
-      strategyId, 
-      strategyName, 
-      assetPair = "BTC/USD", 
-      interval = 15, 
-      candleCount = 300, 
-      initialBalance = 10000, 
-      feePercent = 0.26, 
-      slippagePercent = 0.05, 
-      hardStopEnabled = true, 
-      hardStopPercent = 5.0, 
-      parameters, 
-      code 
-    } = req.body;
+// ---------------------------------------------------------------------------
+// BACKTESTING ENGINE: QUANTJOURNEY WORKFLOW
+// ---------------------------------------------------------------------------
 
-    // Resolve matching strategy if strategyId provided
-    const strat = strategies.find(s => s.id === strategyId);
-    const resolvedName = strategyName || strat?.name || "Custom Strategy Backtest";
+function numericOr(value: any, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function bpsFromPercent(value: any, fallbackPercent: number): number {
+  const parsed = Number(value);
+  const percent = Number.isFinite(parsed) && parsed >= 0 ? parsed : fallbackPercent;
+  return percent * 100;
+}
+
+function resolveBacktestSymbols(body: any): string[] {
+  const raw = body?.symbols ?? body?.instruments ?? body?.assetPairs;
+  const list = Array.isArray(raw)
+    ? raw
+    : typeof raw === "string"
+      ? raw.split(",")
+      : [body?.assetPair || body?.pair || "BTC/USD"];
+  const cleaned = list
+    .map((item: any) => String(item || "").trim().toUpperCase())
+    .filter(Boolean);
+  return Array.from(new Set(cleaned)).slice(0, 12);
+}
+
+async function safeQjCapabilities() {
+  try {
+    return await getQjCapabilities();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchBacktestCandles(
+  symbols: string[],
+  interval: number,
+  candleCount: number
+): Promise<{ candles: Record<string, any[]>; missing: string[] }> {
+  const candles: Record<string, any[]> = {};
+  const missing: string[] = [];
+  for (const symbol of symbols) {
+    try {
+      const rows = await fetchLiveKrakenOHLC(symbol, interval);
+      if (rows && rows.length > 0) {
+        candles[symbol] = rows.slice(-candleCount);
+      } else {
+        missing.push(symbol);
+      }
+    } catch {
+      missing.push(symbol);
+    }
+  }
+  return { candles, missing };
+}
+
+async function buildQjRequest(body: any, fallbackName: string): Promise<Record<string, any>> {
+  const symbols = resolveBacktestSymbols(body);
+  const interval = Math.min(43_200, Math.max(1, Math.round(numericOr(body?.intervalMinutes ?? body?.interval, 15))));
+  const candleCount = Math.min(720, Math.max(50, Math.round(numericOr(body?.candleCount ?? body?.bars, 720))));
+  const initialCapital = Math.max(100, numericOr(body?.initialBalance ?? body?.initialCapital, 10_000));
+  const { candles, missing } = await fetchBacktestCandles(symbols, interval, candleCount);
+
+  const benchmarkSymbol = body?.benchmarkSymbol ? String(body.benchmarkSymbol).toUpperCase() : undefined;
+  const benchmarkFetched = benchmarkSymbol && !candles[benchmarkSymbol]
+    ? await fetchBacktestCandles([benchmarkSymbol], interval, candleCount)
+    : null;
+  if (benchmarkFetched) Object.assign(candles, benchmarkFetched.candles);
+
+  const hasCandles = Object.keys(candles).length > 0;
+  const strategySpec =
+    body?.strategy && typeof body.strategy === "object"
+      ? body.strategy
+      : inferStrategySpec(
+          body?.parameters || body?.params,
+          body?.code,
+          body?.model || body?.strategyModel
+        );
+
+  const source = hasCandles ? "payload" : "sample";
+  return {
+    strategyId: String(body?.strategyId || "custom"),
+    strategyName: String(body?.strategyName || fallbackName),
+    symbols,
+    intervalMinutes: interval,
+    candleCount,
+    initialCapital,
+    feeBps: bpsFromPercent(body?.feePercent, 0.26),
+    slippageBps: bpsFromPercent(body?.slippagePercent, 0.05),
+    source,
+    candles: hasCandles ? candles : undefined,
+    strategy: strategySpec,
+    allocation: body?.allocation || {
+      method: "equal_weight",
+      maxPositionSize: 1.0,
+      longShort: false,
+    },
+    rebalance: body?.rebalance || {
+      frequency: body?.rebalanceFrequency || "signal",
+      onSignalChange: true,
+    },
+    benchmarkSymbol,
+    benchmarkMode: benchmarkSymbol ? "asset" : "equal_weight",
+    hardStopEnabled: body?.hardStopEnabled ?? false,
+    hardStopPercent: body?.hardStopPercent,
+    persist: body?.persist !== false,
+    tags: body?.tags,
+    warnings: missing.length ? [`No live candles for ${missing.join(", ")}; sample data will be used`] : [],
+  };
+}
+
+app.get("/api/backtest/engines", async (_req: Request, res: Response) => {
+  try {
+    const capabilities = await getQjCapabilities(true);
+    res.json(capabilities);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Unable to inspect backtest engines." });
+  }
+});
+
+app.post("/api/backtest/run", async (req: Request, res: Response) => {
+  const requestedEngine = String(req.body?.engine || req.body?.backtestEngine || "quantjourney").toLowerCase();
+  const nativeRequested = ["native", "ts", "typescript", "legacy"].includes(requestedEngine);
+  try {
+    const strat = strategies.find((s) => s.id === req.body?.strategyId);
+    const resolvedName = req.body?.strategyName || strat?.name || "Custom Strategy Backtest";
+
+    if (!nativeRequested) {
+      const capabilities = await safeQjCapabilities();
+      if (capabilities?.qjAvailable) {
+        const payload = await buildQjRequest(req.body || {}, resolvedName);
+        const result = (await runQjBacktest(payload)) as QjBacktestResponse;
+        res.json({
+          ...result,
+          warnings: [...(payload.warnings || []), ...(result.warnings || [])],
+          engine: "quantjourney-bt",
+          engineRequested: requestedEngine,
+          qjCapabilities: capabilities,
+          fallbackReason: null,
+        });
+        return;
+      }
+    }
+
+    const {
+      strategyId,
+      strategyName,
+      assetPair = "BTC/USD",
+      interval = 15,
+      candleCount = 300,
+      initialBalance = 10000,
+      feePercent = 0.26,
+      slippagePercent = 0.05,
+      hardStopEnabled = true,
+      hardStopPercent = 5.0,
+      parameters,
+      code,
+    } = req.body || {};
+
     const resolvedPair = assetPair || strat?.assetPair || "BTC/USD";
     const resolvedInterval = Number(interval) || Number(strat?.interval) || 15;
     const resolvedParams = parameters || strat?.parameters || {};
@@ -4452,13 +4606,138 @@ app.post("/api/backtest/run", async (req: Request, res: Response) => {
       hardStopEnabled: resolvedHardStop,
       hardStopPercent: resolvedHardStopPercent,
       parameters: resolvedParams,
-      code: resolvedCode
+      code: resolvedCode,
     });
 
-    res.json(result);
+    const capabilities = await safeQjCapabilities();
+    res.json({
+      ...result,
+      engine: "native-ts",
+      engineRequested: requestedEngine,
+      qjCapabilities: capabilities,
+      fallbackReason: nativeRequested
+        ? null
+        : "quantjourney-bt is not installed; served by the native simulation engine",
+    });
   } catch (err: any) {
     console.error("Backtest simulation failure:", err);
     res.status(500).json({ error: err.message || "Failed to execute backtest simulation." });
+  }
+});
+
+app.post("/api/backtest/walkforward", async (req: Request, res: Response) => {
+  try {
+    const strat = strategies.find((s) => s.id === req.body?.strategyId);
+    const payload = await buildQjRequest(req.body || {}, strat?.name || "Walk-Forward Validation");
+    const walkForward = { ...(req.body || {}), ...(req.body?.walkForward || {}) };
+    payload.walkForward = {
+      scheme: walkForward.scheme || "rolling",
+      trainBars: walkForward.trainBars,
+      testBars: walkForward.testBars,
+      stepBars: walkForward.stepBars,
+      purgeBars: walkForward.purgeBars ?? 0,
+      minTrainBars: walkForward.minTrainBars,
+      objective: walkForward.objective || "sharpe",
+      paramGrid: walkForward.paramGrid || walkForward.grid || {},
+      maxTrials: Math.min(2000, Math.max(1, numericOr(walkForward.maxTrials, 48))),
+      refit: walkForward.refit !== false,
+      costSensitivityBps: walkForward.costSensitivityBps,
+    };
+    const result = await runQjWalkForward(payload);
+    res.json(result);
+  } catch (err: any) {
+    console.error("Walk-forward failure:", err);
+    res.status(500).json({ error: err.message || "Walk-forward validation failed." });
+  }
+});
+
+app.post("/api/backtest/optimize", async (req: Request, res: Response) => {
+  try {
+    const strat = strategies.find((s) => s.id === req.body?.strategyId);
+    const payload = await buildQjRequest(req.body || {}, strat?.name || "Parameter Optimisation");
+    const optimization = { ...(req.body || {}), ...(req.body?.optimization || {}) };
+    payload.optimization = {
+      objective: optimization.objective || "sharpe",
+      paramGrid: optimization.paramGrid || optimization.grid || {},
+      maxTrials: Math.min(2000, Math.max(1, numericOr(optimization.maxTrials, 96))),
+    };
+    const result = await runQjOptimization(payload);
+    res.json(result);
+  } catch (err: any) {
+    console.error("Optimisation failure:", err);
+    res.status(500).json({ error: err.message || "Parameter optimisation failed." });
+  }
+});
+
+app.post("/api/backtest/stress", async (req: Request, res: Response) => {
+  try {
+    const strat = strategies.find((s) => s.id === req.body?.strategyId);
+    const payload = await buildQjRequest(req.body || {}, strat?.name || "Cost Stress Test");
+    const stress = { ...(req.body || {}), ...(req.body?.stress || {}) };
+    payload.stress = {
+      feeBpsGrid: stress.feeBpsGrid,
+      slippageBpsGrid: stress.slippageBpsGrid,
+    };
+    const result = await runQjStress(payload);
+    res.json(result);
+  } catch (err: any) {
+    console.error("Cost stress failure:", err);
+    res.status(500).json({ error: err.message || "Cost stress test failed." });
+  }
+});
+
+app.get("/api/backtest/runs", async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(200, Math.max(1, numericOr(req.query.limit, 25)));
+    const kind = req.query.kind ? String(req.query.kind) : undefined;
+    const runs = await listQjRuns(limit, kind);
+    res.json({ runs });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Unable to list backtest runs." });
+  }
+});
+
+app.get("/api/backtest/runs/:runId", async (req: Request, res: Response) => {
+  try {
+    const includeResult = String(req.query.includeResult || "").toLowerCase() === "true";
+    const payload = await getQjRun(req.params.runId, includeResult);
+    res.json(payload);
+  } catch (err: any) {
+    res.status(404).json({ error: err.message || "Backtest run not found." });
+  }
+});
+
+app.get("/api/backtest/runs/:runId/artifact/:name", (req: Request, res: Response) => {
+  try {
+    const { content, mediaType } = readQjArtifact(req.params.runId, req.params.name);
+    res.setHeader("Content-Type", mediaType);
+    res.setHeader("Content-Disposition", `inline; filename="${req.params.name}"`);
+    res.send(content);
+  } catch (err: any) {
+    res.status(404).json({ error: err.message || "Artifact not found." });
+  }
+});
+
+app.delete("/api/backtest/runs/:runId", async (req: Request, res: Response) => {
+  try {
+    const result = await deleteQjRun(req.params.runId);
+    res.json(result);
+  } catch (err: any) {
+    res.status(404).json({ error: err.message || "Unable to delete backtest run." });
+  }
+});
+
+app.post("/api/backtest/compare", async (req: Request, res: Response) => {
+  try {
+    const runIds: string[] = Array.isArray(req.body?.runIds) ? req.body.runIds : [];
+    if (runIds.length < 2) {
+      res.status(400).json({ error: "Provide at least two runIds to compare." });
+      return;
+    }
+    const result = await compareQjRuns(runIds);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Run comparison failed." });
   }
 });
 

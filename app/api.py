@@ -322,6 +322,17 @@ async def night_train_api(req: DictRequest):
     return run_night_train(**req.data)
 
 
+# ---------------------------------------------------------------------------
+# QuantJourney backtesting workflow (app/backtest)
+# ---------------------------------------------------------------------------
+try:  # FastAPI is optional in minimal installs.
+    from app.backtest.api import router as qj_backtest_router
+
+    app.include_router(qj_backtest_router)
+except Exception:  # pragma: no cover - keeps the execution API available
+    qj_backtest_router = None  # type: ignore[assignment]
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

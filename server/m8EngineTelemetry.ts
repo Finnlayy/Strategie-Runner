@@ -1,5 +1,3 @@
-import { TradingStrategy } from "../src/types";
-
 export interface M8GateItem {
   gate: string;
   name: string;
@@ -147,7 +145,12 @@ export function recordM8Transition(fromState: string, toState: string, trigger: 
 }
 
 export function computeM8LiveTelemetry(
-  strategies: TradingStrategy[],
+  strategies: Array<{
+    id: string;
+    name: string;
+    assetPair: string;
+    status: "active" | "inactive" | "archived" | "error";
+  }>,
   tickers: Record<string, { price: number; change24h: number; volume: number; high: number; low: number }>,
   totalEquityUSD: number = 100000
 ): M8LiveTelemetryPayload {
