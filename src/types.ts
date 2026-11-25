@@ -467,6 +467,13 @@ export interface BacktestSummary {
   worstTradeUSD: number;
   avgHoldCandles: number;
   totalFeesPaid: number;
+  calmarRatio?: number;
+  annualizedVolatilityPercent?: number;
+  exposurePercent?: number;
+  beta?: number;
+  informationRatio?: number;
+  var95Percent?: number;
+  cvar95Percent?: number;
 }
 
 export interface BacktestAIAnalysis {
@@ -497,6 +504,13 @@ export interface BacktestResult {
   equityCurve: BacktestEquityPoint[];
   trades: BacktestTrade[];
   aiAnalysis?: BacktestAIAnalysis;
+  runId?: string;
+  engine?: string;
+  engineRequested?: string;
+  symbols?: string[];
+  analytics?: QjAnalytics;
+  artifacts?: QjArtifact[];
+  warnings?: string[];
 }
 
 // GENETIC WALK-FORWARD STRATEGY OPTIMIZER TYPES
@@ -612,4 +626,371 @@ export interface GeneticOptimizationResult {
     improvementPercent: number;
     isBetter: boolean;
   };
+}
+
+// ---------------------------------------------------------------------------
+// QUANTJOURNEY BACKTESTER WORKFLOW
+// ---------------------------------------------------------------------------
+
+export interface QjModelParam {
+  key: string;
+  label: string;
+  type: 'int' | 'float' | 'bool' | 'json' | string;
+  default: any;
+  min?: number;
+  max?: number;
+}
+
+export interface QjModelDefinition {
+  id: string;
+  label: string;
+  family: string;
+  description: string;
+  params: QjModelParam[];
+}
+
+export interface QjEngineCapabilities {
+  engine: string;
+  qjAvailable: boolean;
+  tiAvailable: boolean;
+  versions: {
+    quantjourneyBt?: string | null;
+    quantjourneyTi?: string | null;
+    pandas?: string | null;
+    numpy?: string | null;
+    python?: string | null;
+  };
+  missing: string[];
+  models: QjModelDefinition[];
+  features: Record<string, boolean>;
+  runsDir?: string;
+  runCount?: number;
+}
+
+export interface QjEngineMeta {
+  engine: string;
+  version?: string | null;
+  mode?: string;
+  rebalanceEngine?: string;
+  costSolver?: string;
+  costModel?: string;
+  policy?: string;
+  periodsPerYear?: number;
+}
+
+export interface QjAnalytics {
+  engine: QjEngineMeta;
+  metrics: Record<string, any>;
+  tradeStats?: Record<string, any>;
+  rebalance?: { policy?: string; count?: number; stats?: Record<string, any> };
+  contribution?: Record<string, {
+    contributionPercent?: number;
+    sharePercent?: number | null;
+    averageWeightPercent?: number;
+    exposureSharePercent?: number;
+  }>;
+  data?: {
+    source?: string;
+    symbols?: string[];
+    bars?: number;
+    start?: string;
+    end?: string;
+    intervalMinutes?: number;
+    benchmark?: string;
+  };
+  strategy?: { model?: string; params?: Record<string, any>; diagnostics?: Record<string, any> };
+  quality?: { warnings?: string[]; rating?: string; confidence?: string };
+  assumptions?: Record<string, any>;
+  optimization?: Record<string, any>;
+}
+
+export interface QjArtifact {
+  name: string;
+  bytes?: number;
+  mediaType?: string;
+  url: string;
+}
+
+export interface QjEnrichedBacktestResult extends BacktestResult {
+  runId?: string;
+  engine?: string;
+  engineRequested?: string;
+  symbols?: string[];
+  analytics?: QjAnalytics;
+  artifacts?: QjArtifact[];
+  warnings?: string[];
+  fallbackReason?: string | null;
+  qjCapabilities?: QjEngineCapabilities;
+}
+
+export interface QjFoldResult {
+  fold: number;
+  trainStart: string;
+  trainEnd: string;
+  testStart: string;
+  testEnd: string;
+  trainBars?: number;
+  testBars?: number;
+  bestParams?: Record<string, any>;
+  inSample?: Record<string, any>;
+  outOfSample?: Record<string, any>;
+  efficiency?: number | null;
+  overfitRatio?: number | null;
+  deflatedSharpe?: number | null;
+  rankStabilityLogit?: number | null;
+  stitchedNav?: number;
+  status: string;
+  error?: string;
+}
+
+export interface QjVerdict {
+  name: string;
+  value: number;
+  signal: string;
+  description: string;
+}
+
+export interface QjWalkForwardResult {
+  runId: string;
+  kind: 'walkforward';
+  strategyName: string;
+  assetPair: string;
+  symbols: string[];
+  periodLabel: string;
+  geometry: {
+    scheme: string;
+    trainBars: number;
+    testBars: number;
+    stepBars: number;
+    purgeBars: number;
+    folds: number;
+    gridSize: number;
+  };
+  folds: QjFoldResult[];
+  summary: {
+    nFolds: number;
+    failedFolds: number;
+    oosSharpe?: number | null;
+    oosCagrPercent?: number | null;
+    oosTotalReturnPercent?: number | null;
+    oosMaxDrawdownPercent?: number | null;
+    inSampleSharpe?: number;
+    meanOosSharpe?: number;
+    efficiency?: number | null;
+    overfitRatio?: number | null;
+    sharpeDecayPerFold?: number | null;
+    consistencyPercent?: number;
+    bestParams?: Record<string, any>;
+    deflatedSharpe?: number | null;
+    deflatedSharpeMethod?: string | null;
+    deflatedSharpeReason?: string | null;
+    rankStabilityFailureRate?: number | null;
+    rankStabilityReason?: string | null;
+    objective: string;
+    warnings: string[];
+    verdicts: QjVerdict[];
+    elapsedSeconds?: number;
+  };
+  equityCurve: BacktestEquityPoint[];
+  warnings: string[];
+  artifacts: QjArtifact[];
+}
+
+export interface QjTrial {
+  rank: number;
+  params: Record<string, any>;
+  score: number;
+  sharpeRatio?: number | null;
+  totalReturnPercent?: number | null;
+  cagrPercent?: number | null;
+  maxDrawdownPercent?: number | null;
+  totalTrades?: number | null;
+  profitFactor?: number | null;
+  annualizedVolatilityPercent?: number | null;
+}
+
+export interface QjOptimizationResult {
+  runId: string;
+  kind: 'optimization';
+  strategyName: string;
+  assetPair: string;
+  symbols: string[];
+  periodLabel: string;
+  summary: {
+    objective: string;
+    gridSize: number;
+    completedTrials: number;
+    failedTrials: number;
+    bestParams: Record<string, any>;
+    bestScore?: number | null;
+    bestMetrics?: Record<string, any>;
+    deflatedSharpe?: number | null;
+    deflatedSharpeMethod?: string | null;
+    deflatedSharpeReason?: string | null;
+    baselineMetrics?: Record<string, any>;
+    warnings: string[];
+    elapsedSeconds?: number;
+  };
+  trials: QjTrial[];
+  bestResult?: QjEnrichedBacktestResult | null;
+  warnings: string[];
+  artifacts: QjArtifact[];
+}
+
+export interface QjStressScenario {
+  feeBps: number;
+  slippageBps: number;
+  totalBps: number;
+  totalReturnPercent?: number | null;
+  cagrPercent?: number | null;
+  sharpeRatio?: number | null;
+  maxDrawdownPercent?: number | null;
+  totalCostsUSD?: number | null;
+  totalTrades?: number | null;
+  status: string;
+  error?: string;
+}
+
+export interface QjStressResult {
+  runId: string;
+  kind: 'stress';
+  strategyName: string;
+  assetPair: string;
+  symbols: string[];
+  periodLabel: string;
+  summary: {
+    scenarios: number;
+    breakevenBps?: number | null;
+    zeroCostReturnPercent?: number | null;
+    highestCostReturnPercent?: number | null;
+    returnDecayPercent?: number | null;
+    elapsedSeconds?: number;
+  };
+  scenarios: QjStressScenario[];
+  warnings: string[];
+  artifacts: QjArtifact[];
+}
+
+export interface QjRunSummary {
+  runId: string;
+  kind: string;
+  createdAt: string;
+  strategyName?: string;
+  assetPair?: string;
+  interval?: number;
+  periodLabel?: string;
+  engine?: string;
+  metrics?: Record<string, any>;
+  warnings?: string[];
+  config?: Record<string, any> | null;
+  artifactCount?: number;
+}
+
+// ---------------------------------------------------------------------------
+// STRATEGY ARENA (multi-bot R-score replay)
+// ---------------------------------------------------------------------------
+
+export interface ArenaLadderStep {
+  target: string;
+  rMultiple: number;
+  fraction: number;
+  price: number | null;
+  hit: boolean;
+  time: string | null;
+}
+
+export interface ArenaTrade {
+  id: string;
+  symbol: string;
+  side: string;
+  entryTime: string;
+  exitTime: string | null;
+  entryPrice: number;
+  exitPrice: number | null;
+  amount: number;
+  totalValue?: number;
+  fee?: number | null;
+  pnl: number | null;
+  pnlPercent: number | null;
+  reason?: string;
+  holdingBars?: number;
+  entryTs?: number | null;
+  exitTs?: number | null;
+  rMultiple: number;
+  grossR?: number;
+  feeR?: number;
+  riskAmount?: number;
+  exitReason?: string;
+  ladder?: ArenaLadderStep[];
+}
+
+export interface ArenaSignalCheck {
+  label: string;
+  value: string;
+  status: 'pass' | 'fail' | 'info' | string;
+}
+
+export interface ArenaBot {
+  id: string;
+  name: string;
+  tagline: string;
+  family: string;
+  model: string;
+  params: Record<string, any>;
+  color: string;
+  rule: string;
+  rank: number;
+  scoreR: number;
+  avgR: number;
+  wins: number;
+  losses: number;
+  breakeven: number;
+  winRate: number;
+  profitFactorR: number | null;
+  totalTrades: number;
+  openTrades: number;
+  totalReturnPercent: number | null;
+  maxDrawdownPercent: number | null;
+  sharpeRatio: number | null;
+  exposurePercent: number | null;
+  equityCurve: Array<{ time: string; equity: number }>;
+  trades: ArenaTrade[];
+  lastTrade: ArenaTrade | null;
+  openPosition: Record<string, any> | null;
+  signal: {
+    state: string;
+    label: string;
+    detail: string;
+    checks: ArenaSignalCheck[];
+    lastPrice: number | null;
+    lastWeight: number | null;
+  };
+  status: string;
+}
+
+export interface ArenaResult {
+  kind: 'arena';
+  generatedAt: string;
+  symbols: string[];
+  assetPair: string;
+  interval: number;
+  periodLabel: string;
+  totalCandles: number;
+  source: string;
+  engine: Record<string, any>;
+  scoring: {
+    metric: string;
+    basis: string;
+    riskPercent: number;
+    ladder: number[];
+    ladderSizing: string;
+  };
+  priceSeries: Array<{ timestamp: string; ts: number; time: string; price: number }>;
+  bots: ArenaBot[];
+  leaderboard: Array<Record<string, any>>;
+  tradeTape: Array<Record<string, any>>;
+  notes: Array<{ id: string; title: string; body: string }>;
+  warnings: string[];
+  assumptions: Record<string, any>;
+  elapsedSeconds: number | null;
 }

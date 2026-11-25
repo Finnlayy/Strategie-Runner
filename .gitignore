@@ -41,3 +41,6 @@ data/strategy-manifest.json
 data/**/*.parquet
 data/**/*.csv
 data/paper/exports/
+
+# QuantJourney research packets (generated at runtime)
+data/backtest_runs/

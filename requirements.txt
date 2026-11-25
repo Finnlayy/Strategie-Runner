@@ -6,4 +6,7 @@ polars
 pyarrow
 duckdb
 scipy
+pandas>=2.0
 pydantic
+# Optional research engine (Python >= 3.11):
+#   pip install -r requirements-backtest.txt

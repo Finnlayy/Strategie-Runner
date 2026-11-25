@@ -628,6 +628,121 @@ def orchestrator_reset(symbol: Optional[str] = None, confirm: bool = False) -> d
 
 
 # ---------------------------------------------------------------------------
+# QuantJourney backtesting workflow (app/backtest)
+# ---------------------------------------------------------------------------
+
+
+def _backtest_service():
+    from app.backtest import service
+
+    return service
+
+
+@mcp.tool(
+    name="qj_backtest_capabilities",
+    title="QJ backtest capabilities",
+    description=(
+        "QuantJourney backtester availability, versions, supported strategy models and persisted run count. "
+        "Use before running a backtest to confirm the full engine is installed."
+    ),
+    annotations=READ_ONLY,
+)
+def qj_backtest_capabilities() -> dict[str, Any]:
+    return json_safe(_backtest_service().capabilities())
+
+
+@mcp.tool(
+    name="qj_run_backtest",
+    title="Run QuantJourney backtest",
+    description=(
+        "Run a full portfolio backtest with the QuantJourney engine: signals -> target weights -> "
+        "policy rebalancing -> transaction costs -> NAV -> metrics -> trades -> research packet. "
+        "Accepts inline candles, sample data, CSV or the local DuckDB lake."
+    ),
+    annotations=LOCAL_MUTATION,
+)
+def qj_run_backtest(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    return json_safe(_backtest_service().run_backtest(payload or {}))
+
+
+@mcp.tool(
+    name="qj_walk_forward",
+    title="QuantJourney walk-forward validation",
+    description=(
+        "Bar-based walk-forward validation with per-fold parameter refit, purge gaps, OOS stitching, "
+        "deflated Sharpe and rank-stability diagnostics."
+    ),
+    annotations=LOCAL_MUTATION,
+)
+def qj_walk_forward(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    return json_safe(_backtest_service().run_walk_forward_request(payload or {}))
+
+
+@mcp.tool(
+    name="qj_optimize",
+    title="QuantJourney parameter optimisation",
+    description="Full-sample grid search with multiple-testing deflation and a best-parameter research packet.",
+    annotations=LOCAL_MUTATION,
+)
+def qj_optimize(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    return json_safe(_backtest_service().run_optimization_request(payload or {}))
+
+
+@mcp.tool(
+    name="qj_cost_stress",
+    title="QuantJourney cost stress",
+    description="Re-run a strategy across fee/slippage grids to expose cost fragility and a breakeven bps level.",
+    annotations=LOCAL_MUTATION,
+)
+def qj_cost_stress(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    return json_safe(_backtest_service().run_stress_request(payload or {}))
+
+
+@mcp.tool(
+    name="qj_strategy_arena",
+    title="QuantJourney strategy arena",
+    description=(
+        "Run six rule-based bots on one market with shared costs and a 2% risk budget, "
+        "rank them by realised R over closed trades, and return each bot's live rule check, "
+        "last-trade replay and 1R/2R/3R scale-out ladder."
+    ),
+    annotations=LOCAL_MUTATION,
+)
+def qj_strategy_arena(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    return json_safe(_backtest_service().run_arena_request(payload or {}))
+
+
+@mcp.tool(
+    name="qj_backtest_runs",
+    title="List QJ backtest runs",
+    description="List persisted QuantJourney research packets with their headline metrics.",
+    annotations=READ_ONLY,
+)
+def qj_backtest_runs(limit: int = 20, kind: str | None = None) -> dict[str, Any]:
+    return json_safe({"runs": _backtest_service().list_runs(limit=max(1, min(limit, 100)), kind=kind)})
+
+
+@mcp.tool(
+    name="qj_backtest_report",
+    title="Read QJ backtest report",
+    description="Read a persisted run and its artifact manifest (summary, metrics CSV, trades CSV, dashboard HTML).",
+    annotations=READ_ONLY,
+)
+def qj_backtest_report(run_id: str, include_result: bool = False) -> dict[str, Any]:
+    return json_safe(_backtest_service().get_run(run_id, include_result=include_result))
+
+
+@mcp.tool(
+    name="qj_backtest_compare",
+    title="Compare QJ backtest runs",
+    description="Compare headline metrics across up to eight persisted runs and flag the best value per metric.",
+    annotations=READ_ONLY,
+)
+def qj_backtest_compare(run_ids: list[str]) -> dict[str, Any]:
+    return json_safe(_backtest_service().compare_runs(run_ids))
+
+
+# ---------------------------------------------------------------------------
 # Resources and prompt templates
 # ---------------------------------------------------------------------------
 

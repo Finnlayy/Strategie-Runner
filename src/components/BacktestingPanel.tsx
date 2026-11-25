@@ -51,6 +51,7 @@ interface BacktestingPanelProps {
   selectedStrategy: TradingStrategy | null;
   onSelectStrategy: (strat: TradingStrategy) => void;
   onOpenOrchestrator: (strat: TradingStrategy) => void;
+  onOpenQjStudio?: () => void;
   onUpdateStrategyParams?: (stratId: string, params: Record<string, any>) => Promise<void>;
   symbols?: KrakenSymbolInfo[];
 }
@@ -60,6 +61,7 @@ export const BacktestingPanel: React.FC<BacktestingPanelProps> = ({
   selectedStrategy,
   onSelectStrategy,
   onOpenOrchestrator,
+  onOpenQjStudio,
   onUpdateStrategyParams,
   symbols = []
 }) => {
@@ -75,6 +77,8 @@ export const BacktestingPanel: React.FC<BacktestingPanelProps> = ({
   const [slippagePercent, setSlippagePercent] = useState<number>(0.05);
   const [hardStopEnabled, setHardStopEnabled] = useState<boolean>(true);
   const [hardStopPercent, setHardStopPercent] = useState<number>(5.0);
+  const [backtestEngine, setBacktestEngine] = useState<'quantjourney' | 'native'>('quantjourney');
+  const [runError, setRunError] = useState<string | null>(null);
 
   // Execution & Results State
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -107,6 +111,7 @@ export const BacktestingPanel: React.FC<BacktestingPanelProps> = ({
     if (!currentStrategy) return;
     setIsLoading(true);
     setAiReport(null);
+    setRunError(null);
 
     try {
       const res = await fetch('/api/backtest/run', {
@@ -123,19 +128,26 @@ export const BacktestingPanel: React.FC<BacktestingPanelProps> = ({
           slippagePercent,
           hardStopEnabled,
           hardStopPercent,
+          engine: backtestEngine,
+          symbols: [assetPair],
+          benchmarkSymbol: assetPair,
+          rebalance: { frequency: 'signal', onSignalChange: true },
+          allocation: { method: 'equal_weight', maxPositionSize: 1.0, longShort: false },
           parameters: currentStrategy.parameters || {},
           code: currentStrategy.code || ''
         })
       });
 
+      const payload = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(`Backtest error: ${res.statusText}`);
+        throw new Error(payload?.error || `Backtest error: ${res.statusText}`);
       }
 
-      const data: BacktestResult = await res.json();
+      const data: BacktestResult = payload;
       setBacktestResult(data);
     } catch (err: any) {
       console.error("Backtest run failure:", err);
+      setRunError(err?.message || 'Backtest run failed');
     } finally {
       setIsLoading(false);
     }
@@ -255,6 +267,9 @@ export const BacktestingPanel: React.FC<BacktestingPanelProps> = ({
                 <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-emerald-950/60 text-emerald-400 border border-emerald-800/50 rounded">
                   Kraken Historical OHLC
                 </span>
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-indigo-950/60 text-indigo-300 border border-indigo-800/50 rounded">
+                  {backtestResult?.engine === 'quantjourney-bt' ? 'QJ ENGINE' : backtestResult?.engine === 'native-ts' ? 'NATIVE ENGINE' : backtestEngine === 'quantjourney' ? 'QJ PREFERRED' : 'NATIVE PREFERRED'}
+                </span>
               </div>
               <p className="text-xs text-zinc-400 mt-0.5 font-mono">
                 Simulate algorithmic trade execution with real candlestick order books, slippage, maker/taker fees, and emergency Hard Stops.
@@ -263,6 +278,16 @@ export const BacktestingPanel: React.FC<BacktestingPanelProps> = ({
           </div>
 
           <div className="flex items-center space-x-2 shrink-0">
+            {onOpenQjStudio && (
+              <button
+                onClick={onOpenQjStudio}
+                className="px-3 py-1.5 rounded border border-indigo-700/70 bg-indigo-950/50 hover:bg-indigo-900/60 text-indigo-200 text-xs font-mono flex items-center space-x-1.5 transition-all"
+                title="Open the QuantJourney walk-forward, optimisation and cost-stress studio"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
+                <span>QJ Studio</span>
+              </button>
+            )}
             {currentStrategy && (
               <button
                 onClick={() => onOpenOrchestrator(currentStrategy)}
@@ -423,6 +448,26 @@ export const BacktestingPanel: React.FC<BacktestingPanelProps> = ({
               <span className="text-zinc-400 text-xs">%</span>
             </div>
           </div>
+
+          {/* 7. Backtest Engine */}
+          <div className="space-y-1">
+            <label className="text-zinc-400 block text-[11px] font-semibold uppercase tracking-wider">
+              Backtest Engine
+            </label>
+            <select
+              value={backtestEngine}
+              onChange={(e) => setBacktestEngine(e.target.value as 'quantjourney' | 'native')}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-emerald-500 transition-colors"
+            >
+              <option value="quantjourney">QuantJourney BT</option>
+              <option value="native">Native Simulator</option>
+            </select>
+            <span className="block text-[9px] text-zinc-500 leading-tight">
+              {backtestEngine === 'quantjourney'
+                ? 'Policy rebalancing + cost solver + WFO ready'
+                : 'Legacy candle-by-candle simulator'}
+            </span>
+          </div>
         </div>
 
         {/* Micro Config Extras (Fees, Slippage & Active Params) */}
@@ -454,6 +499,13 @@ export const BacktestingPanel: React.FC<BacktestingPanelProps> = ({
         <div className="p-3 bg-emerald-950/80 border border-emerald-800 text-emerald-300 rounded-lg text-xs font-mono flex items-center space-x-2 animate-fadeIn">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{appliedParamsNotification}</span>
+        </div>
+      )}
+
+      {runError && (
+        <div className="p-3 bg-rose-950/70 border border-rose-900 text-rose-200 rounded-lg text-xs font-mono flex items-start space-x-2">
+          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+          <span>{runError}</span>
         </div>
       )}
 
@@ -602,6 +654,79 @@ export const BacktestingPanel: React.FC<BacktestingPanelProps> = ({
               </div>
             </div>
           </div>
+
+          {backtestResult.analytics && (
+            <div className="bg-zinc-900/70 border border-indigo-900/50 rounded-lg p-3.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-2 mb-2">
+                <div className="flex items-center flex-wrap gap-2 text-[10px] font-mono text-zinc-400">
+                  <span className="flex items-center space-x-1 text-indigo-300">
+                    <Sparkles className="w-3 h-3" />
+                    <span>{backtestResult.analytics.engine?.engine || 'quantjourney-bt'}</span>
+                  </span>
+                  <span className="text-zinc-600">·</span>
+                  <span>{backtestResult.analytics.engine?.mode || 'weights'}</span>
+                  <span className="text-zinc-600">·</span>
+                  <span>{backtestResult.analytics.engine?.policy || 'signal rebalance'}</span>
+                  {backtestResult.runId && (
+                    <>
+                      <span className="text-zinc-600">·</span>
+                      <span className="text-zinc-500">{backtestResult.runId}</span>
+                    </>
+                  )}
+                </div>
+                {backtestResult.runId && (
+                  <div className="flex items-center gap-2 text-[10px] font-mono">
+                    <a
+                      href={`/api/backtest/runs/${encodeURIComponent(backtestResult.runId)}/artifact/dashboard.html`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-emerald-400 hover:text-emerald-300 flex items-center space-x-1"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>Research Dashboard</span>
+                    </a>
+                    <a
+                      href={`/api/backtest/runs/${encodeURIComponent(backtestResult.runId)}/artifact/summary.json`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-zinc-400 hover:text-zinc-200"
+                    >
+                      summary.json
+                    </a>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 text-[10px] font-mono">
+                {[
+                  ['Sortino', backtestResult.analytics.metrics?.sortinoRatio, ''],
+                  ['Calmar', backtestResult.analytics.metrics?.calmarRatio, ''],
+                  ['CAGR', backtestResult.analytics.metrics?.cagrPercent, '%'],
+                  ['Exposure', backtestResult.analytics.metrics?.exposurePercent, '%'],
+                  ['Turnover', backtestResult.analytics.metrics?.turnoverRatio, 'x'],
+                  ['Total Costs', backtestResult.analytics.metrics?.totalCostsUSD, ' USD'],
+                ].map(([label, value, suffix]) => (
+                  <div key={String(label)} className="bg-zinc-950/60 border border-zinc-800 rounded px-2 py-1.5">
+                    <div className="text-zinc-500 uppercase text-[9px]">{label}</div>
+                    <div className="text-zinc-200">
+                      {value === null || value === undefined || Number.isNaN(Number(value))
+                        ? '—'
+                        : `${Number(value).toFixed(2)}${suffix}`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {backtestResult.warnings && backtestResult.warnings.length > 0 && (
+                <div className="mt-2 text-[10px] font-mono text-amber-300/90 space-y-0.5">
+                  {backtestResult.warnings.map((warning, index) => (
+                    <div key={index} className="flex items-start space-x-1">
+                      <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                      <span>{warning}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* B. MAIN INTERACTIVE VISUALIZER & CHARTS */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 sm:p-5">
