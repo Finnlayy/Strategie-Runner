@@ -38,7 +38,12 @@ import { WalletsPanel } from "./components/quant/WalletsPanel";
 
 export default function App() {
   // Page Navigation State
-  const [activePage, setActivePage] = useState<'overview' | 'health' | 'regime' | 'execution' | 'wallets' | 'orchestrator' | 'backtesting' | 'qjbacktest' | 'arena' | 'genetic' | 'queues' | 'ledgers' | 'datalake' | 'analyst' | 'onnx' | 'jev'>('overview');
+  const [activePage, setActivePage] = useState<'overview' | 'health' | 'regime' | 'execution' | 'wallets' | 'orchestrator' | 'backtesting' | 'qjbacktest' | 'arena' | 'genetic' | 'queues' | 'ledgers' | 'datalake' | 'analyst' | 'onnx' | 'jev'>(() => {
+    if (typeof window === 'undefined') return 'overview';
+    const requested = new URLSearchParams(window.location.search).get('page') || window.location.hash.replace('#', '');
+    const allowed = ['overview', 'health', 'regime', 'execution', 'wallets', 'orchestrator', 'backtesting', 'qjbacktest', 'arena', 'genetic', 'queues', 'ledgers', 'datalake', 'analyst', 'onnx', 'jev'];
+    return allowed.includes(requested) ? (requested as any) : 'overview';
+  });
 
   const [strategies, setStrategies] = useState<TradingStrategy[]>([]);
   const [selectedStrategy, setSelectedStrategy] = useState<TradingStrategy | null>(null);
