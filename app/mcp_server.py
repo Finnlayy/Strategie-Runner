@@ -699,6 +699,20 @@ def qj_cost_stress(payload: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 @mcp.tool(
+    name="qj_strategy_arena",
+    title="QuantJourney strategy arena",
+    description=(
+        "Run six rule-based bots on one market with shared costs and a 2% risk budget, "
+        "rank them by realised R over closed trades, and return each bot's live rule check, "
+        "last-trade replay and 1R/2R/3R scale-out ladder."
+    ),
+    annotations=LOCAL_MUTATION,
+)
+def qj_strategy_arena(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    return json_safe(_backtest_service().run_arena_request(payload or {}))
+
+
+@mcp.tool(
     name="qj_backtest_runs",
     title="List QJ backtest runs",
     description="List persisted QuantJourney research packets with their headline metrics.",

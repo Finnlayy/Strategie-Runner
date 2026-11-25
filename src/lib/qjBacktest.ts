@@ -7,6 +7,7 @@
  */
 
 import {
+  ArenaResult,
   QjEngineCapabilities,
   QjEnrichedBacktestResult,
   QjOptimizationResult,
@@ -100,6 +101,14 @@ export async function runQjOptimization(payload: Record<string, any>): Promise<Q
 export async function runQjStress(payload: Record<string, any>): Promise<QjStressResult> {
   return request<QjStressResult>(
     '/stress',
+    { method: 'POST', body: JSON.stringify(payload) },
+    300_000
+  );
+}
+
+export async function runQjArena(payload: Record<string, any>): Promise<ArenaResult> {
+  return request<ArenaResult>(
+    '/arena',
     { method: 'POST', body: JSON.stringify(payload) },
     300_000
   );

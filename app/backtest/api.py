@@ -57,6 +57,11 @@ def stress(payload: dict[str, Any] = Body(default_factory=dict)) -> dict[str, An
     return _handle(lambda: _service().run_stress_request(payload))
 
 
+@router.post("/arena")
+def arena(payload: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:
+    return _handle(lambda: _service().run_arena_request(payload))
+
+
 @router.get("/runs")
 def runs(limit: int = Query(default=50, ge=1, le=500), kind: str | None = None) -> dict[str, Any]:
     return _handle(lambda: {"runs": _service().list_runs(limit=limit, kind=kind)})

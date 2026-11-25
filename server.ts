@@ -168,6 +168,7 @@ import {
   runQjWalkForward,
   runQjOptimization,
   runQjStress,
+  runQjArena,
   listQjRuns,
   getQjRun,
   deleteQjRun,
@@ -4683,6 +4684,25 @@ app.post("/api/backtest/stress", async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error("Cost stress failure:", err);
     res.status(500).json({ error: err.message || "Cost stress test failed." });
+  }
+});
+
+app.post("/api/backtest/arena", async (req: Request, res: Response) => {
+  try {
+    const payload = await buildQjRequest(req.body || {}, "Strategy Arena");
+    payload.riskPercent = Math.min(25, Math.max(0.1, numericOr(req.body?.riskPercent, 2)));
+    payload.ladder = Array.isArray(req.body?.ladder) && req.body.ladder.length
+      ? req.body.ladder.slice(0, 4).map((value: any) => Number(value)).filter((value: number) => Number.isFinite(value) && value > 0)
+      : [1, 2, 3];
+    if (Array.isArray(req.body?.bots)) payload.bots = req.body.bots.slice(0, 12);
+    const result = await runQjArena(payload);
+    res.json({
+      ...result,
+      warnings: [...(payload.warnings || []), ...(result.warnings || [])],
+    });
+  } catch (err: any) {
+    console.error("Arena failure:", err);
+    res.status(500).json({ error: err.message || "Strategy arena run failed." });
   }
 });
 

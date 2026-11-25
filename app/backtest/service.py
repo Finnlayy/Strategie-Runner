@@ -12,11 +12,13 @@ import os
 import re
 import shutil
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+from app.backtest.arena import run_arena
 from app.backtest.config import (
     BacktestConfig,
     BacktestError,
@@ -382,6 +384,36 @@ def run_stress_request(payload: Mapping[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # History
 # ---------------------------------------------------------------------------
+
+
+def run_arena_request(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Run the multi-bot arena replay without persisting a research packet."""
+
+    started = time.perf_counter()
+    config = BacktestConfig.from_payload({**dict(payload or {}), "persist": False})
+    panel = resolve_panel(config)
+    bots = payload.get("bots")
+    if bots is not None and not isinstance(bots, list):
+        raise BacktestError("arena bots must be a list")
+    risk_percent = payload.get("riskPercent", payload.get("risk_percent", 2.0))
+    try:
+        risk_value = float(risk_percent)
+    except (TypeError, ValueError) as exc:
+        raise BacktestError("arena riskPercent must be numeric") from exc
+    targets = payload.get("ladder", payload.get("ladderTargets")) or (1.0, 2.0, 3.0)
+    if not isinstance(targets, (list, tuple)) or not 1 <= len(targets) <= 4:
+        raise BacktestError("arena ladder must contain 1-4 R targets")
+    if any(float(item) <= 0 for item in targets):
+        raise BacktestError("arena ladder targets must be positive")
+    result = run_arena(
+        config,
+        panel,
+        bots=bots,
+        risk_percent=risk_value,
+        targets=tuple(float(item) for item in targets),
+    )
+    result["elapsedSeconds"] = round(time.perf_counter() - started, 2)
+    return result
 
 
 def _read_summary(directory: Path) -> dict[str, Any] | None:

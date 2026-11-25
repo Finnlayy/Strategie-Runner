@@ -177,6 +177,113 @@ export interface QjBacktestResponse {
 const _backtestResultContract: BacktestResult = {} as QjBacktestResponse;
 void _backtestResultContract;
 
+export interface QjArenaSignalCheck {
+  label: string;
+  value: string;
+  status: "pass" | "fail" | "info" | string;
+}
+
+export interface QjArenaLadderStep {
+  target: string;
+  rMultiple: number;
+  fraction: number;
+  price: number | null;
+  hit: boolean;
+  time: string | null;
+}
+
+export interface QjArenaTrade {
+  id: string;
+  symbol: string;
+  side: string;
+  entryTime: string;
+  exitTime: string | null;
+  entryPrice: number;
+  exitPrice: number | null;
+  amount: number;
+  totalValue?: number;
+  fee?: number | null;
+  pnl: number | null;
+  pnlPercent: number | null;
+  reason?: string;
+  holdingBars?: number;
+  entryTs?: number | null;
+  exitTs?: number | null;
+  rMultiple: number;
+  grossR?: number;
+  feeR?: number;
+  riskAmount?: number;
+  riskDistance?: number;
+  exitReason?: string;
+  simulated?: boolean;
+  ladder?: QjArenaLadderStep[];
+}
+
+export interface QjArenaBot {
+  id: string;
+  name: string;
+  tagline: string;
+  family: string;
+  model: string;
+  params: Record<string, unknown>;
+  color: string;
+  rule: string;
+  rank: number;
+  scoreR: number;
+  avgR: number;
+  wins: number;
+  losses: number;
+  breakeven: number;
+  winRate: number;
+  profitFactorR: number | null;
+  totalTrades: number;
+  openTrades: number;
+  totalReturnPercent: number | null;
+  maxDrawdownPercent: number | null;
+  sharpeRatio: number | null;
+  exposurePercent: number | null;
+  equityCurve: Array<{ time: string; equity: number }>;
+  trades: QjArenaTrade[];
+  lastTrade: QjArenaTrade | null;
+  openPosition: Record<string, any> | null;
+  signal: {
+    state: string;
+    label: string;
+    detail: string;
+    checks: QjArenaSignalCheck[];
+    lastPrice: number | null;
+    lastWeight: number | null;
+  };
+  status: string;
+}
+
+export interface QjArenaResponse {
+  kind: "arena";
+  generatedAt: string;
+  symbols: string[];
+  assetPair: string;
+  interval: number;
+  periodLabel: string;
+  totalCandles: number;
+  source: string;
+  engine: Record<string, any>;
+  scoring: {
+    metric: string;
+    basis: string;
+    riskPercent: number;
+    ladder: number[];
+    ladderSizing: string;
+  };
+  priceSeries: Array<{ timestamp: string; ts: number; time: string; price: number }>;
+  bots: QjArenaBot[];
+  leaderboard: Array<Record<string, any>>;
+  tradeTape: Array<Record<string, any>>;
+  notes: Array<{ id: string; title: string; body: string }>;
+  warnings: string[];
+  assumptions: Record<string, any>;
+  elapsedSeconds: number | null;
+}
+
 export interface QjFold {
   fold: number;
   trainStart: string;
@@ -532,6 +639,10 @@ export async function runQjOptimization(payload: Record<string, unknown>): Promi
 
 export async function runQjStress(payload: Record<string, unknown>): Promise<QjStressResponse> {
   return (await runCli("stress", payload, 300_000)) as QjStressResponse;
+}
+
+export async function runQjArena(payload: Record<string, unknown>): Promise<QjArenaResponse> {
+  return (await runCli("arena", payload, 300_000)) as QjArenaResponse;
 }
 
 export async function listQjRuns(limit = 50, kind?: string): Promise<QjRunSummary[]> {

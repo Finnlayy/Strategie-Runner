@@ -69,6 +69,7 @@ The TypeScript server exposes the workflow under `/api/backtest`:
 | `POST` | `/api/backtest/walkforward` | Walk-forward validation. |
 | `POST` | `/api/backtest/optimize` | Full-sample grid optimisation. |
 | `POST` | `/api/backtest/stress` | Fee/slippage cost stress. |
+| `POST` | `/api/backtest/arena` | Six-bot R-score arena replay with rule checks and last-trade ladders. |
 | `GET` | `/api/backtest/runs?limit=25&kind=backtest` | Run history summaries. |
 | `GET` | `/api/backtest/runs/:id?includeResult=true` | Run summary + reloadable payload. |
 | `GET` | `/api/backtest/runs/:id/artifact/:name` | Serve an allow-listed artifact (`dashboard.html`, `summary.json`, `metrics.csv`, ...). |
@@ -113,6 +114,7 @@ python -m app.backtest.cli run --request request.json
 python -m app.backtest.cli walkforward --request wf.json
 python -m app.backtest.cli optimize --request opt.json
 python -m app.backtest.cli stress --request stress.json
+python -m app.backtest.cli arena --request arena.json
 python -m app.backtest.cli list --limit 10
 python -m app.backtest.cli show <run-id> --summary-only
 python -m app.backtest.cli compare <run-a> <run-b>
@@ -132,6 +134,7 @@ compute commands only.
 - `qj_walk_forward`
 - `qj_optimize`
 - `qj_cost_stress`
+- `qj_strategy_arena`
 - `qj_backtest_runs`
 - `qj_backtest_report`
 - `qj_backtest_compare`
@@ -204,7 +207,46 @@ Artifacts:
 
 The artifact route enforces an allow-list and a strict run-ID pattern.
 
-## 9. Tests
+## 9. Strategy Arena (analog design)
+
+The arena is an analog of a live multi-bot broadcast, not a copy of its visuals.
+The structure was translated into our domain as follows:
+
+| Broadcast element | Arena implementation |
+| --- | --- |
+| Six bots trading one live market | Six rule sets from the strategy registry, replayed on one shared candle panel |
+| Score = realised R, closed trades only | Every trade is normalised by its initial risk (`entry × amount × riskPercent`); open positions are shown but never scored |
+| 1/3 out at 1R/2R/3R, stop to break-even after TP1, to TP1 after TP2 | `_simulate_ladder()` post-processes each closed trade bar-by-bar through the three-stage scale-out ladder |
+| Live chart | Price series with entry/exit markers for the selected bot |
+| Bot analysis: rule, live check, why waiting, last trade replay | `signal.checks`, `signal.detail`, and the ladder/entry/exit replay in the analysis rail |
+| Academy lessons | Contextual notes on R, scale-outs, waiting and closed-only scoring |
+| Pick your bot in chat | Follow/star a bot (persisted in local storage) and pin it in the analysis rail |
+| Same rules for everyone | Identical candles, fees, slippage, one-bar delay, capital and risk budget for every entrant |
+
+Routes and commands:
+
+```bash
+curl -X POST http://localhost:3000/api/backtest/arena \
+  -H 'Content-Type: application/json' \
+  -d '{"symbols":["BTC/USD"],"intervalMinutes":60,"candleCount":720,"riskPercent":2}'
+
+python -m app.backtest.cli arena --request arena.json
+```
+
+MCP: `qj_strategy_arena`. FastAPI: `POST /api/qj-backtest/arena`.
+UI: **Strategy Arena** in the main navigation (`src/components/quant/BotArena.tsx`).
+
+Arena limitations:
+
+- The ladder is a deterministic replay over OHLC bars. When a bar touches both the
+  stop and a target, the stop is assumed to fill first (conservative).
+- Fees are converted into R (`fee ÷ initial risk`) and deducted from the ladder
+  result; the raw QJ trade PnL is kept for reference.
+- Unrealised PnL of open positions is displayed but excluded from the score, so a
+  bot can sit at 0R while carrying an open loss.
+- This is a research replay, not live paper execution; no orders are placed.
+
+## 10. Tests
 
 ```bash
 python -m unittest tests.test_qj_backtest -v
@@ -216,7 +258,7 @@ persistence, walk-forward, optimisation, stress, artifact allow-list) are skippe
 when `quantjourney-bt` is missing and otherwise exercise the real engine on the
 bundled sample.
 
-## 10. Known limitations
+## 11. Known limitations
 
 - `quantjourney-bt` requires Python ≥ 3.11; the legacy simulator and the core
   server still run on older interpreters.

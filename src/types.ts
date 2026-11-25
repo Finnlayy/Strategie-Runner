@@ -885,3 +885,112 @@ export interface QjRunSummary {
   config?: Record<string, any> | null;
   artifactCount?: number;
 }
+
+// ---------------------------------------------------------------------------
+// STRATEGY ARENA (multi-bot R-score replay)
+// ---------------------------------------------------------------------------
+
+export interface ArenaLadderStep {
+  target: string;
+  rMultiple: number;
+  fraction: number;
+  price: number | null;
+  hit: boolean;
+  time: string | null;
+}
+
+export interface ArenaTrade {
+  id: string;
+  symbol: string;
+  side: string;
+  entryTime: string;
+  exitTime: string | null;
+  entryPrice: number;
+  exitPrice: number | null;
+  amount: number;
+  totalValue?: number;
+  fee?: number | null;
+  pnl: number | null;
+  pnlPercent: number | null;
+  reason?: string;
+  holdingBars?: number;
+  entryTs?: number | null;
+  exitTs?: number | null;
+  rMultiple: number;
+  grossR?: number;
+  feeR?: number;
+  riskAmount?: number;
+  exitReason?: string;
+  ladder?: ArenaLadderStep[];
+}
+
+export interface ArenaSignalCheck {
+  label: string;
+  value: string;
+  status: 'pass' | 'fail' | 'info' | string;
+}
+
+export interface ArenaBot {
+  id: string;
+  name: string;
+  tagline: string;
+  family: string;
+  model: string;
+  params: Record<string, any>;
+  color: string;
+  rule: string;
+  rank: number;
+  scoreR: number;
+  avgR: number;
+  wins: number;
+  losses: number;
+  breakeven: number;
+  winRate: number;
+  profitFactorR: number | null;
+  totalTrades: number;
+  openTrades: number;
+  totalReturnPercent: number | null;
+  maxDrawdownPercent: number | null;
+  sharpeRatio: number | null;
+  exposurePercent: number | null;
+  equityCurve: Array<{ time: string; equity: number }>;
+  trades: ArenaTrade[];
+  lastTrade: ArenaTrade | null;
+  openPosition: Record<string, any> | null;
+  signal: {
+    state: string;
+    label: string;
+    detail: string;
+    checks: ArenaSignalCheck[];
+    lastPrice: number | null;
+    lastWeight: number | null;
+  };
+  status: string;
+}
+
+export interface ArenaResult {
+  kind: 'arena';
+  generatedAt: string;
+  symbols: string[];
+  assetPair: string;
+  interval: number;
+  periodLabel: string;
+  totalCandles: number;
+  source: string;
+  engine: Record<string, any>;
+  scoring: {
+    metric: string;
+    basis: string;
+    riskPercent: number;
+    ladder: number[];
+    ladderSizing: string;
+  };
+  priceSeries: Array<{ timestamp: string; ts: number; time: string; price: number }>;
+  bots: ArenaBot[];
+  leaderboard: Array<Record<string, any>>;
+  tradeTape: Array<Record<string, any>>;
+  notes: Array<{ id: string; title: string; body: string }>;
+  warnings: string[];
+  assumptions: Record<string, any>;
+  elapsedSeconds: number | null;
+}

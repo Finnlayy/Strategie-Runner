@@ -6,7 +6,7 @@ import {
   Code2, Sliders, ArrowRight, Radio, Activity, ExternalLink, ShieldCheck,
   TrendingUp, TrendingDown, DollarSign, BarChart3, History, Dna, Layers,
   Wallet, FileSpreadsheet, Database, Archive, ArchiveRestore, GitCommit, Calculator,
-  Coins, ArrowUpRight, FolderGit2, BrainCircuit, Brain
+  Coins, ArrowUpRight, FolderGit2, BrainCircuit, Brain, Swords
 } from "lucide-react";
 
 import { TradingStrategy, MarketTicker, ExecutionLog, TradeOrder, RunnerMetrics, StrategyPnL, QueueMatrixData, formatTimeframe } from "./types";
@@ -19,6 +19,7 @@ import AIReviewer from "./components/AIReviewer";
 import MarketPanel from "./components/MarketPanel";
 import { BacktestingPanel } from "./components/BacktestingPanel";
 import { QJBacktestStudio } from "./components/quant/QJBacktestStudio";
+import { BotArena } from "./components/quant/BotArena";
 import { GeneticOptimizerPanel } from "./components/GeneticOptimizerPanel";
 import QueueMatrixPanel from "./components/QueueMatrixPanel";
 import KrakenLedgersPanel from "./components/KrakenLedgersPanel";
@@ -37,7 +38,7 @@ import { WalletsPanel } from "./components/quant/WalletsPanel";
 
 export default function App() {
   // Page Navigation State
-  const [activePage, setActivePage] = useState<'overview' | 'health' | 'regime' | 'execution' | 'wallets' | 'orchestrator' | 'backtesting' | 'qjbacktest' | 'genetic' | 'queues' | 'ledgers' | 'datalake' | 'analyst' | 'onnx' | 'jev'>('overview');
+  const [activePage, setActivePage] = useState<'overview' | 'health' | 'regime' | 'execution' | 'wallets' | 'orchestrator' | 'backtesting' | 'qjbacktest' | 'arena' | 'genetic' | 'queues' | 'ledgers' | 'datalake' | 'analyst' | 'onnx' | 'jev'>('overview');
 
   const [strategies, setStrategies] = useState<TradingStrategy[]>([]);
   const [selectedStrategy, setSelectedStrategy] = useState<TradingStrategy | null>(null);
@@ -523,6 +524,22 @@ export default function App() {
               <span>Strategy Backtesting</span>
               <span className="bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
                 OHLC
+              </span>
+            </button>
+
+            <button
+              id="nav-tab-strategy-arena"
+              onClick={() => setActivePage('arena')}
+              className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-md text-xs font-mono font-medium transition-all ${
+                activePage === 'arena'
+                  ? 'bg-amber-950/70 text-amber-200 shadow-sm border border-amber-700/70'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+              }`}
+            >
+              <Swords className="w-3.5 h-3.5 text-amber-400" />
+              <span>Strategy Arena</span>
+              <span className="bg-amber-900/60 text-amber-200 border border-amber-700/60 text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
+                6 Bots
               </span>
             </button>
 
@@ -1373,6 +1390,16 @@ export default function App() {
                   await handleUpdateStrategy(stratId, { parameters: params });
                 }}
               />
+            </motion.div>
+          ) : activePage === 'arena' ? (
+            <motion.div
+              key="strategy-arena-page"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+            >
+              <BotArena />
             </motion.div>
           ) : activePage === 'qjbacktest' ? (
             <motion.div

@@ -222,6 +222,28 @@ class BacktestWorkflowTests(unittest.TestCase):
         statuses = {scenario["status"] for scenario in result["scenarios"]}
         self.assertTrue(statuses <= {"ok", "failed"})
 
+    def test_arena_contract(self) -> None:
+        result = service.run_arena_request(
+            sample_payload(riskPercent=2, ladder=[1, 2, 3])
+        )
+        self.assertEqual(result["kind"], "arena")
+        self.assertEqual(len(result["bots"]), 6)
+        self.assertEqual([bot["rank"] for bot in result["bots"]], [1, 2, 3, 4, 5, 6])
+        self.assertTrue(result["priceSeries"])
+        self.assertIn("ts", result["priceSeries"][0])
+        self.assertTrue(result["notes"])
+        self.assertEqual(result["scoring"]["basis"], "closed trades only")
+
+        for bot in result["bots"]:
+            self.assertIn(bot["signal"]["state"], {"long", "short", "ready", "waiting"})
+            self.assertTrue(bot["signal"]["checks"])
+            for trade in bot["trades"]:
+                self.assertIsNotNone(trade["exitPrice"])
+                self.assertEqual(len(trade["ladder"]), 3)
+                self.assertIn("rMultiple", trade)
+            expected = round(sum(float(trade["rMultiple"]) for trade in bot["trades"]), 2)
+            self.assertAlmostEqual(bot["scoreR"], expected, places=2)
+
     def test_artifact_allowlist(self) -> None:
         result = service.run_backtest(sample_payload())
         with self.assertRaises(BacktestError):

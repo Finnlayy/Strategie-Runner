@@ -168,6 +168,12 @@ def build_parser() -> argparse.ArgumentParser:
     stress.add_argument("--fee-grid", default=None, dest="fee_grid", help="fee bps values JSON")
     stress.add_argument("--slippage-grid", default=None, dest="slippage_grid", help="slippage bps values JSON")
 
+    arena = subparsers.add_parser("arena", help="multi-bot R-score arena replay")
+    add_common(arena)
+    arena.add_argument("--risk-percent", type=float, default=None, dest="risk_percent")
+    arena.add_argument("--ladder", default=None, help="JSON list of R targets, e.g. [1,2,3]")
+    arena.add_argument("--bots", default=None, help="JSON list of arena bot overrides")
+
     list_cmd = subparsers.add_parser("list", help="list persisted runs")
     list_cmd.add_argument("--limit", type=int, default=50)
     list_cmd.add_argument("--kind", default=None, choices=["backtest", "walkforward", "optimization", "stress"])
@@ -217,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
         payload: dict[str, Any] = {}
         if getattr(args, "request", None):
             payload = _read_request(args.request)
-        if args.command in {"run", "walkforward", "optimize", "stress"}:
+        if args.command in {"run", "walkforward", "optimize", "stress", "arena"}:
             payload = _apply_common_overrides(args, payload)
 
         if args.command == "run":
@@ -263,6 +269,17 @@ def main(argv: list[str] | None = None) -> int:
                 stress_config["slippageBpsGrid"] = json.loads(args.slippage_grid)
             payload["stress"] = stress_config
             result = service.run_stress_request(payload)
+            _emit(result, pretty=pretty)
+            return 0
+
+        if args.command == "arena":
+            if getattr(args, "risk_percent", None) is not None:
+                payload["riskPercent"] = args.risk_percent
+            if getattr(args, "ladder", None):
+                payload["ladder"] = json.loads(args.ladder)
+            if getattr(args, "bots", None):
+                payload["bots"] = json.loads(args.bots)
+            result = service.run_arena_request(payload)
             _emit(result, pretty=pretty)
             return 0
 
